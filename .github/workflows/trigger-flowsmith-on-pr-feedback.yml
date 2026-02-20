@@ -1,0 +1,216 @@
+name: flowsmith: trigger on pr feedback
+
+on:
+  pull_request_review:
+    types:
+      - submitted
+      - edited
+      - dismissed
+  issue_comment:
+    types:
+      - created
+      - edited
+  pull_request_review_comment:
+    types:
+      - created
+      - edited
+
+permissions:
+  contents: read
+  pull-requests: read
+  issues: read
+
+concurrency:
+  group: pr-feedback-${{ github.repository }}-${{ github.event.pull_request.number || github.event.issue.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    env:
+      FLOW_SMITH_REPO: ${{ vars.FLOW_SMITH_REPO || 'MasaakiAYB/FlowSmith' }}
+      FLOW_SMITH_PROJECT_ID: ${{ vars.FLOW_SMITH_PROJECT_ID || '' }}
+      FEEDBACK_TRIGGER_REGEX: ${{ vars.FLOWSMITH_FEEDBACK_TRIGGER_REGEX || '(^|[[:space:]])/(agent|flowsmith)[[:space:]]+(run|fix)([[:space:]]|$)' }}
+      FEEDBACK_ALLOWED_ASSOCIATIONS: ${{ vars.FLOWSMITH_FEEDBACK_ALLOWED_ASSOCIATIONS || 'OWNER,MEMBER,COLLABORATOR' }}
+    steps:
+      - name: Validate dispatch token
+        run: |
+          if [ -z "${{ secrets.FLOW_SMITH_DISPATCH_TOKEN }}" ]; then
+            echo "Secret FLOW_SMITH_DISPATCH_TOKEN is required." >&2
+            exit 1
+          fi
+
+      - name: Resolve PR context
+        id: ctx
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          event_name="${GITHUB_EVENT_NAME}"
+          pr_number=""
+          feedback_text=""
+          trigger_reason=""
+          source_actor=""
+          author_association=""
+
+          if [ "$event_name" = "pull_request_review" ]; then
+            state="$(jq -r '.review.state // ""' "$GITHUB_EVENT_PATH")"
+            if [ "$state" != "changes_requested" ] && [ "$state" != "commented" ]; then
+              echo "changes_requested/commented 以外はスキップします。"
+              exit 0
+            fi
+            pr_number="$(jq -r '.pull_request.number // "" | tostring' "$GITHUB_EVENT_PATH")"
+            trigger_reason="review:${state}"
+            feedback_text="$(jq -r '.review.body // ""' "$GITHUB_EVENT_PATH")"
+            source_actor="$(jq -r '.review.user.login // ""' "$GITHUB_EVENT_PATH")"
+            author_association="$(jq -r '.review.author_association // ""' "$GITHUB_EVENT_PATH" | tr '[:lower:]' '[:upper:]')"
+          elif [ "$event_name" = "pull_request_review_comment" ]; then
+            commenter="$(jq -r '.comment.user.login // ""' "$GITHUB_EVENT_PATH")"
+            if echo "$commenter" | grep -Eq '\[bot\]$'; then
+              echo "botコメントは対象外です。"
+              exit 0
+            fi
+            pr_number="$(jq -r '.pull_request.number // "" | tostring' "$GITHUB_EVENT_PATH")"
+            trigger_reason="review-comment"
+            feedback_text="$(jq -r '.comment.body // ""' "$GITHUB_EVENT_PATH")"
+            source_actor="$commenter"
+            author_association="$(jq -r '.comment.author_association // ""' "$GITHUB_EVENT_PATH" | tr '[:lower:]' '[:upper:]')"
+          elif [ "$event_name" = "issue_comment" ]; then
+            if [ "$(jq -r 'if (.issue.pull_request.url // "") != "" then "true" else "false" end' "$GITHUB_EVENT_PATH")" != "true" ]; then
+              echo "PR以外のIssueコメントは対象外です。"
+              exit 0
+            fi
+            commenter="$(jq -r '.comment.user.login // ""' "$GITHUB_EVENT_PATH")"
+            if echo "$commenter" | grep -Eq '\[bot\]$'; then
+              echo "botコメントは対象外です。"
+              exit 0
+            fi
+            pr_number="$(jq -r '.issue.number // "" | tostring' "$GITHUB_EVENT_PATH")"
+            trigger_reason="pr-comment"
+            feedback_text="$(jq -r '.comment.body // ""' "$GITHUB_EVENT_PATH")"
+            source_actor="$commenter"
+            author_association="$(jq -r '.comment.author_association // ""' "$GITHUB_EVENT_PATH" | tr '[:lower:]' '[:upper:]')"
+          else
+            echo "Unsupported event: $event_name"
+            exit 0
+          fi
+
+          # allow trusted reviewers only
+          is_allowed="false"
+          IFS=',' read -r -a allowed_assoc <<< "${FEEDBACK_ALLOWED_ASSOCIATIONS:-OWNER,MEMBER,COLLABORATOR}"
+          for item in "${allowed_assoc[@]}"; do
+            normalized="$(printf '%s' "$item" | xargs | tr '[:lower:]' '[:upper:]')"
+            if [ -n "$normalized" ] && [ "$normalized" = "$author_association" ]; then
+              is_allowed="true"
+              break
+            fi
+          done
+          if [ "$is_allowed" != "true" ]; then
+            echo "許可されていない author_association のためスキップします: actor=${source_actor:-unknown} association=${author_association:-unknown}"
+            exit 0
+          fi
+
+          # explicit command gate: only run when reviewer asks
+          if ! printf '%s\n' "$feedback_text" | grep -Eiq "${FEEDBACK_TRIGGER_REGEX}"; then
+            echo "トリガーコマンドが見つからないためスキップします。"
+            exit 0
+          fi
+
+          # remove command tokens from feedback body before forwarding
+          feedback_text="$(printf '%s\n' "$feedback_text" \
+            | sed -E "s@(^|[[:space:]])/(agent|flowsmith)[[:space:]]+(run|fix)([[:space:]]|$)@ @Ig" \
+            | sed -E 's/[[:space:]]+$//')"
+
+          pr_json="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${pr_number}")"
+          head_ref="$(echo "$pr_json" | jq -r '.head.ref')"
+          body="$(echo "$pr_json" | jq -r '.body // ""')"
+
+          issue_number="$(echo "$head_ref" | sed -n 's|.*issue-\([0-9]\+\).*|\1|p' | head -n 1)"
+          if [ -z "$issue_number" ]; then
+            issue_number="$(printf '%s' "$body" | grep -Eio 'closes #[0-9]+' | head -n 1 | grep -Eo '[0-9]+' || true)"
+          fi
+          if [ -z "$issue_number" ]; then
+            echo "Issue番号を特定できなかったためスキップします。"
+            exit 0
+          fi
+
+          {
+            echo "pr_number=$pr_number"
+            echo "issue_number=$issue_number"
+            echo "head_ref=$head_ref"
+            echo "base_ref=$(echo "$pr_json" | jq -r '.base.ref')"
+            echo "trigger_reason=$trigger_reason"
+            echo "source_actor=$source_actor"
+            echo "author_association=$author_association"
+            echo "feedback_text<<EOF"
+            printf '%s\n' "$feedback_text"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Send repository_dispatch to FlowSmith
+        if: ${{ steps.ctx.outputs.pr_number != '' }}
+        env:
+          FLOW_SMITH_DISPATCH_TOKEN: ${{ secrets.FLOW_SMITH_DISPATCH_TOKEN }}
+          FLOW_SMITH_DISPATCH_SECRET: ${{ secrets.FLOW_SMITH_DISPATCH_SECRET || '' }}
+        run: |
+          set -euo pipefail
+
+          owner="${FLOW_SMITH_REPO%%/*}"
+          repo="${FLOW_SMITH_REPO##*/}"
+
+          payload="$(jq -n \
+            --arg issue_number "${{ steps.ctx.outputs.issue_number }}" \
+            --arg pr_number "${{ steps.ctx.outputs.pr_number }}" \
+            --arg source_repository "${GITHUB_REPOSITORY}" \
+            --arg project_id "${FLOW_SMITH_PROJECT_ID}" \
+            --arg branch_name "${{ steps.ctx.outputs.head_ref }}" \
+            --arg base_branch "${{ steps.ctx.outputs.base_ref }}" \
+            --arg dispatch_secret "${FLOW_SMITH_DISPATCH_SECRET}" \
+            --arg request_id "pr-feedback-${{ github.run_id }}-${{ github.run_attempt }}" \
+            --arg trigger_reason "${{ steps.ctx.outputs.trigger_reason }}" \
+            --arg feedback_text "${{ steps.ctx.outputs.feedback_text }}" \
+            '{
+              event_type: "autonomous-agent-feedback-request",
+              client_payload: (
+                {
+                  issue_number: ($issue_number | tonumber),
+                  target_repo: $source_repository,
+                  branch_name: $branch_name,
+                  base_branch: $base_branch,
+                  feedback_pr_number: ($pr_number | tonumber),
+                  feedback_text: (
+                    if ($feedback_text | length) > 0
+                    then ("Triggered by: " + $trigger_reason + "\n\n" + $feedback_text)
+                    else ("Triggered by: " + $trigger_reason)
+                    end
+                  ),
+                  source_repository: $source_repository,
+                  request_id: $request_id,
+                  dispatch_secret: $dispatch_secret
+                } + (if $project_id != "" then {project_id: $project_id} else {} end)
+              )
+            }'
+          )"
+
+          curl -fsSL -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${FLOW_SMITH_DISPATCH_TOKEN}" \
+            "https://api.github.com/repos/${owner}/${repo}/dispatches" \
+            -d "$payload"
+
+      - name: Summary
+        if: ${{ always() }}
+        run: |
+          {
+            echo "## FlowSmith PR Feedback Dispatch"
+            echo ""
+            echo "- flow_smith_repo: \`${FLOW_SMITH_REPO}\`"
+            echo "- flow_smith_project_id: \`${FLOW_SMITH_PROJECT_ID:-未設定}\`"
+            echo "- source_repo: \`${{ github.repository }}\`"
+            echo "- issue_number: \`${{ steps.ctx.outputs.issue_number || '未特定' }}\`"
+            echo "- pr_number: \`${{ steps.ctx.outputs.pr_number || '未特定' }}\`"
+            echo "- trigger_reason: \`${{ steps.ctx.outputs.trigger_reason || 'none' }}\`"
+            echo "- source_actor: \`${{ steps.ctx.outputs.source_actor || 'unknown' }}\`"
+            echo "- author_association: \`${{ steps.ctx.outputs.author_association || 'unknown' }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"

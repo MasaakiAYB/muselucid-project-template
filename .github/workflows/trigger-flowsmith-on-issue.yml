@@ -1,4 +1,4 @@
-name: flowsmith: trigger on issue
+name: "flowsmith: trigger on issue"
 
 on:
   issues:

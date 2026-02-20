@@ -1,4 +1,4 @@
-name: flowsmith: trigger on pr feedback
+name: "flowsmith: trigger on pr feedback"
 
 on:
   pull_request_review:

@@ -32,6 +32,7 @@ jobs:
 
       - name: Sync plan issues to GitHub Issues
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Use PAT if available so issue events can trigger downstream workflows.
+          GITHUB_TOKEN: ${{ secrets.FLOW_SMITH_DISPATCH_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           python .github/scripts/relay_sync.py

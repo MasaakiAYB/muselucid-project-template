@@ -42,10 +42,11 @@ Title: {{title}}
 {{depends_on}}
 """
 
-MANAGED_LABELS = {"agent-task", "agent-ready", "risk-high"}
+MANAGED_LABELS = {"agent-task", "agent-ready", "agent-blocked", "risk-high"}
 LABEL_STYLES = {
     "agent-task": {"color": "0e8a16", "description": "Task for coding agent"},
     "agent-ready": {"color": "1d76db", "description": "Ready for agent execution"},
+    "agent-blocked": {"color": "d73a4a", "description": "Blocked by dependency"},
     "risk-high": {"color": "b60205", "description": "High risk task"},
 }
 DEFAULT_LABEL_STYLE = {"color": "cfd3d7", "description": "Managed by MuseLucid Relay"}
@@ -189,9 +190,6 @@ def load_issue_specs(plan_dir: Path) -> list[IssueSpec]:
             raise RelayError(f"'risk' must be one of low|medium|high in {path}")
 
         labels = require_list(data, "labels", path)
-        labels.extend(["agent-task", "agent-ready"])
-        if risk == "high":
-            labels.append("risk-high")
 
         issue_specs.append(
             IssueSpec(
@@ -275,6 +273,42 @@ def calc_final_labels(existing_labels: list[str], desired_labels: list[str]) -> 
     return dedupe(preserved + desired_labels)
 
 
+def dependency_status(
+    repo: str,
+    depends_on: list[str],
+    token: str,
+    api_base: str,
+) -> tuple[bool, list[str]]:
+    if not depends_on:
+        return True, []
+
+    unresolved: list[str] = []
+    for dep_plan_id in depends_on:
+        dep_issue = find_issue_by_plan_id(repo, dep_plan_id, token, api_base)
+        if not dep_issue:
+            unresolved.append(f"{dep_plan_id}: not found")
+            continue
+
+        state = str(dep_issue.get("state", "")).lower()
+        number = dep_issue.get("number")
+        if state != "closed":
+            unresolved.append(f"{dep_plan_id}: open#{number}")
+
+    return len(unresolved) == 0, unresolved
+
+
+def desired_labels_for_issue(spec: IssueSpec, deps_resolved: bool) -> list[str]:
+    labels = [label for label in spec.labels if label not in MANAGED_LABELS]
+    labels.append("agent-task")
+    if spec.risk == "high":
+        labels.append("risk-high")
+    if deps_resolved:
+        labels.append("agent-ready")
+    else:
+        labels.append("agent-blocked")
+    return dedupe(labels)
+
+
 def write_summary(lines: list[str]) -> None:
     summary_path = os.getenv("GITHUB_STEP_SUMMARY")
     if not summary_path:
@@ -297,10 +331,19 @@ def sync_issues(
     result_lines: list[str] = []
     for spec in issue_specs:
         body = render_issue_body(template, spec, constraints)
+        deps_resolved, unresolved = dependency_status(
+            repo=repo,
+            depends_on=spec.depends_on,
+            token=token,
+            api_base=api_base,
+        )
+        desired_labels = desired_labels_for_issue(spec, deps_resolved)
 
         if dry_run:
             print(f"[DRY-RUN] Plan-ID={spec.issue_id} title={spec.title}")
-            print(f"[DRY-RUN] labels={spec.labels}")
+            print(f"[DRY-RUN] labels={desired_labels}")
+            if unresolved:
+                print(f"[DRY-RUN] blocked_by={unresolved}")
             print("[DRY-RUN] body:")
             print(body)
             print("-" * 60)
@@ -313,7 +356,7 @@ def sync_issues(
             existing_labels = [str(label.get("name", "")).strip() for label in existing.get("labels", [])]
             existing_labels = [label for label in existing_labels if label]
 
-        final_labels = calc_final_labels(existing_labels, spec.labels)
+        final_labels = calc_final_labels(existing_labels, desired_labels)
         for label in final_labels:
             ensure_label(repo, label, token, api_base)
 
@@ -323,12 +366,16 @@ def sync_issues(
             number = int(existing["number"])
             api_request("PATCH", api_base, f"/repos/{repo}/issues/{number}", token, payload)
             msg = f"Updated issue #{number} for Plan-ID {spec.issue_id}"
+            if unresolved:
+                msg += f" (blocked by: {', '.join(unresolved)})"
             print(msg)
             result_lines.append(msg)
         else:
             created = api_request("POST", api_base, f"/repos/{repo}/issues", token, payload)
             number = int(created["number"])
             msg = f"Created issue #{number} for Plan-ID {spec.issue_id}"
+            if unresolved:
+                msg += f" (blocked by: {', '.join(unresolved)})"
             print(msg)
             result_lines.append(msg)
 

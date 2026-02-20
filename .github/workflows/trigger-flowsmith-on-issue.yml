@@ -13,8 +13,8 @@ jobs:
   dispatch:
     if: >-
       ${{
-        (github.event.action == 'opened' && contains(github.event.issue.labels.*.name, 'agent-task')) ||
-        (github.event.action == 'labeled' && github.event.label.name == 'agent-task')
+        (github.event.action == 'opened' && contains(github.event.issue.labels.*.name, 'agent-ready')) ||
+        (github.event.action == 'labeled' && github.event.label.name == 'agent-ready')
       }}
     runs-on: ubuntu-latest
     env:

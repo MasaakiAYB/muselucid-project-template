@@ -1,0 +1,25 @@
+id: ISSUE-0002
+title: 取得したヘッドラインをCLIで表示する
+summary: ISSUE-0001で取得したデータを使い、ユーザー向けの標準出力フォーマットを実装する。
+scope:
+  - 最新ヘッドライン1件を見やすい形式で標準出力に表示する。
+  - 出力失敗時のエラーメッセージを明確にする。
+  - 将来の拡張に備えて表示処理を関数分離する。
+non_goals:
+  - 複数件表示
+  - カラー表示やリッチフォーマット
+  - Web UI 表示
+acceptance_criteria:
+  - コマンド実行時に最新ヘッドライン1件が標準出力に表示される。
+  - 表示処理がISSUE-0001の取得処理に接続されている。
+  - 異常系で非0終了コードが返る。
+verify:
+  - ./scripts/show_latest_headline.sh
+  - ./scripts/show_latest_headline.sh >/tmp/headline.out && test -s /tmp/headline.out
+  - ./scripts/show_latest_headline.sh 2>/tmp/headline.err || test -s /tmp/headline.err
+risk: low
+labels:
+  - agent-task
+  - area:display
+depends_on:
+  - ISSUE-0001

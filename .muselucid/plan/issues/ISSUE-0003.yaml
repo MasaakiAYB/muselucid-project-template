@@ -1,0 +1,25 @@
+id: ISSUE-0003
+title: READMEと検証手順を整備する
+summary: 実装済み機能を誰でも再現できるように、実行方法と検証手順をREADMEに反映する。
+scope:
+  - READMEに前提条件、実行方法、検証方法を追記する。
+  - 失敗時の確認ポイントを簡潔に記載する。
+  - CIまたはローカル検証コマンドを明示する。
+non_goals:
+  - 機能追加
+  - デプロイ手順の実装
+  - 運用監視の導入
+acceptance_criteria:
+  - READMEの手順だけで機能確認が再現できる。
+  - 最低1つの検証コマンドが明記されている。
+  - 実装内容とREADME記載に矛盾がない。
+verify:
+  - rg -n \"latest|headline|ニュース|ヘッドライン\" README.md
+  - ./scripts/show_latest_headline.sh >/tmp/headline.out && test -s /tmp/headline.out
+  - test -f README.md
+risk: low
+labels:
+  - agent-task
+  - area:docs
+depends_on:
+  - ISSUE-0002

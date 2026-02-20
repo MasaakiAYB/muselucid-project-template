@@ -1,0 +1,24 @@
+id: ISSUE-0001
+title: 最新ニュースヘッドライン1件を取得して表示する
+summary: 外部ニュースソースから最新のヘッドラインを1件取得し、実行結果として表示する最小機能を実装する。
+scope:
+  - ニュースソースを1つ選定し、ヘッドライン取得ロジックを実装する。
+  - 取得した最新ヘッドラインのタイトルを整形して表示する。
+  - 通信失敗・レスポンス不正時のエラーハンドリングを実装する。
+non_goals:
+  - 複数ニュースソースの横断取得
+  - 複数件の保存・履歴表示
+  - Web UI の実装
+acceptance_criteria:
+  - 実行コマンドで最新ヘッドライン1件のタイトルが表示される。
+  - 取得失敗時に非0終了コードとエラーメッセージを返す。
+  - README に実行方法と前提条件が記載される。
+verify:
+  - ./scripts/show_latest_headline.sh
+  - ./scripts/show_latest_headline.sh >/tmp/headline.out && test -s /tmp/headline.out
+  - ./scripts/show_latest_headline.sh --help
+risk: low
+labels:
+  - agent-task
+  - agent-ready
+depends_on: []

@@ -1,125 +1,115 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -u
 
-SOURCE_URL="https://news.google.com/rss?hl=ja&gl=JP&ceid=JP:ja"
+FEED_URL="${NEWS_FEED_URL:-https://feeds.bbci.co.uk/news/rss.xml}"
 
-err() {
-  printf 'ERROR: %s\n' "$1" >&2
+usage() {
+  cat <<USAGE
+Usage: ./scripts/show_latest_headline.sh [--help]
+
+Fetch and print the latest headline title from a single RSS feed.
+
+Options:
+  --help    Show this help and exit
+
+Environment:
+  NEWS_FEED_URL  Override RSS feed URL (default: ${FEED_URL})
+
+Exit codes:
+  0   Success
+  2   Invalid arguments
+  10  Network / timeout error while fetching feed
+  11  HTTP error while fetching feed
+  20  Failed to parse feed response
+  21  No headline found in feed
+USAGE
 }
 
-fetch_latest_headline_raw() {
-  local xml
+if [[ "${1:-}" == "--help" ]]; then
+  usage
+  exit 0
+fi
 
-  if ! xml="$(curl -fsSL --connect-timeout 10 --max-time 20 "$SOURCE_URL")"; then
-    err "failed to fetch headline feed from ${SOURCE_URL}"
-    return 1
-  fi
+if [[ $# -gt 0 ]]; then
+  echo "ERROR: unknown option: $1" >&2
+  usage >&2
+  exit 2
+fi
 
-  if [[ -z "${xml}" ]]; then
-    err "empty response from news source"
-    return 1
-  fi
+if ! command -v curl >/dev/null 2>&1; then
+  echo "ERROR: curl is required but not found" >&2
+  exit 10
+fi
 
-  local item
-  item="$(printf '%s' "$xml" | tr '\n' ' ' | awk 'BEGIN{RS="<item>";FS="</item>"} NR==2 {print $1; exit}')"
-  if [[ -z "${item}" ]]; then
-    err "could not parse latest item from feed"
-    return 1
-  fi
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "ERROR: python3 is required but not found" >&2
+  exit 20
+fi
 
-  local title link pub_date
-  title="$(printf '%s' "$item" | perl -0ne 'if (m{<title>(?:<!\[CDATA\[(.*?)\]\]>|([^<]*))</title>}s) { print defined($1) && length($1) ? $1 : $2 }')"
-  link="$(printf '%s' "$item" | perl -0ne 'if (m{<link>(.*?)</link>}s) { print $1 }')"
-  pub_date="$(printf '%s' "$item" | perl -0ne 'if (m{<pubDate>(.*?)</pubDate>}s) { print $1 }')"
-
-  if [[ -z "${title}" ]]; then
-    err "latest item has no title"
-    return 1
-  fi
-
-  printf 'title=%s\n' "$title"
-  printf 'link=%s\n' "${link:-N/A}"
-  printf 'published_at=%s\n' "${pub_date:-N/A}"
-  printf 'source=%s\n' "$SOURCE_URL"
+tmp_file="$(mktemp)"
+cleanup() {
+  rm -f "$tmp_file"
 }
+trap cleanup EXIT
 
-format_headline() {
-  local raw="$1"
-  local title link published_at source
-
-  title="$(printf '%s\n' "$raw" | sed -n 's/^title=//p' | head -n1)"
-  link="$(printf '%s\n' "$raw" | sed -n 's/^link=//p' | head -n1)"
-  published_at="$(printf '%s\n' "$raw" | sed -n 's/^published_at=//p' | head -n1)"
-  source="$(printf '%s\n' "$raw" | sed -n 's/^source=//p' | head -n1)"
-
-  if [[ -z "${title}" ]]; then
-    err "failed to format headline: title is missing"
-    return 1
+curl -fsSL \
+  --connect-timeout 5 \
+  --max-time 15 \
+  --retry 2 \
+  --retry-delay 1 \
+  --retry-connrefused \
+  "$FEED_URL" \
+  -o "$tmp_file"
+curl_rc=$?
+if [[ $curl_rc -ne 0 ]]; then
+  if [[ $curl_rc -eq 22 ]]; then
+    echo "ERROR: failed to fetch feed (HTTP error)" >&2
+    exit 11
   fi
+  echo "ERROR: failed to fetch feed (network or timeout error)" >&2
+  exit 10
+fi
 
-  cat <<OUT
-Latest headline:
-- Title: ${title}
-- Published: ${published_at:-N/A}
-- Link: ${link:-N/A}
-- Source: ${source:-$SOURCE_URL}
-OUT
-}
+if ! headline="$(python3 - "$tmp_file" <<'PY'
+import sys
+import xml.etree.ElementTree as ET
 
-print_headline() {
-  local formatted="$1"
+path = sys.argv[1]
 
-  if ! printf '%s\n' "$formatted"; then
-    err "failed to write headline to stdout"
-    return 1
+try:
+    root = ET.parse(path).getroot()
+except Exception:
+    print("ERROR: failed to parse feed response", file=sys.stderr)
+    sys.exit(20)
+
+title = None
+
+for node in root.findall('.//item/title'):
+    text = (node.text or '').strip()
+    if text:
+        title = text
+        break
+
+if not title:
+    atom_entry_title_path = './/{http://www.w3.org/2005/Atom}entry/{http://www.w3.org/2005/Atom}title'
+    for node in root.findall(atom_entry_title_path):
+        text = (node.text or '').strip()
+        if text:
+            title = text
+            break
+
+if not title:
+    print("ERROR: no headline found in feed", file=sys.stderr)
+    sys.exit(21)
+
+print(' '.join(title.split()))
+PY
+)"; then
+  rc=$?
+  if [[ $rc -eq 21 ]]; then
+    exit 21
   fi
-}
+  exit 20
+fi
 
-source_check() {
-  if ! curl -fsSIL --connect-timeout 10 --max-time 20 "$SOURCE_URL" >/dev/null; then
-    err "news source is not reachable: ${SOURCE_URL}"
-    return 1
-  fi
-
-  printf 'OK: source reachable (%s)\n' "$SOURCE_URL"
-}
-
-main() {
-  local mode="show"
-
-  if [[ "${1:-}" == "--raw" ]]; then
-    mode="raw"
-  elif [[ "${1:-}" == "--source-check" ]]; then
-    mode="source-check"
-  elif [[ "${1:-}" != "" ]]; then
-    err "unknown option: ${1}"
-    err "usage: $0 [--raw|--source-check]"
-    return 2
-  fi
-
-  if [[ "$mode" == "source-check" ]]; then
-    source_check
-    return 0
-  fi
-
-  local raw
-  if ! raw="$(fetch_latest_headline_raw)"; then
-    return 1
-  fi
-
-  if [[ "$mode" == "raw" ]]; then
-    printf '%s\n' "$raw"
-    return 0
-  fi
-
-  local formatted
-  if ! formatted="$(format_headline "$raw")"; then
-    return 1
-  fi
-
-  if ! print_headline "$formatted"; then
-    return 1
-  fi
-}
-
-main "$@"
+printf '%s\n' "$headline"

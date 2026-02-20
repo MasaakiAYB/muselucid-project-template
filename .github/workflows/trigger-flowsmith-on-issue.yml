@@ -3,7 +3,6 @@ name: "flowsmith: trigger on issue"
 on:
   issues:
     types:
-      - opened
       - labeled
 
 permissions:
@@ -45,10 +44,7 @@ jobs:
               reason="manual:agent-run-labeled"
             fi
           else
-            if [ "$action" = "opened" ] && [ "$has_task" = "true" ] && [ "$has_ready" = "true" ]; then
-              should_dispatch="true"
-              reason="auto:opened-with-agent-ready"
-            elif [ "$action" = "labeled" ] && [ "$labeled_name" = "agent-ready" ] && [ "$has_task" = "true" ]; then
+            if [ "$action" = "labeled" ] && [ "$labeled_name" = "agent-ready" ] && [ "$has_task" = "true" ]; then
               should_dispatch="true"
               reason="auto:agent-ready-labeled"
             fi

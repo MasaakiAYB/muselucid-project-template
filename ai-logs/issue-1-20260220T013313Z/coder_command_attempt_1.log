@@ -1,0 +1,1142 @@
+# Command
+
+codex exec -s danger-full-access -o /home/runner/work/FlowSmith/FlowSmith/.agent/runs/masaakiayb-muselucid-project-template/20260220T013313Z-issue-1/coder_output_attempt_1.md - < /home/runner/work/FlowSmith/FlowSmith/.agent/runs/masaakiayb-muselucid-project-template/20260220T013313Z-issue-1/coder_prompt_attempt_1.md
+
+# Exit Code
+
+0
+
+# Stdout
+
+実装を完了しました。Issue #1 のスコープ内で最小構成で対応しています。
+
+**変更内容**
+- `scripts/show_latest_headline.sh` を新規追加
+  - 単一ニュースソース（BBC RSS）から最新1件のヘッドラインを取得して表示
+  - `--help` 実装
+  - 失敗時に標準エラー出力 + 非0終了コード
+    - `10`: ネットワーク/タイムアウト
+    - `11`: HTTPエラー
+    - `20`: パース失敗
+    - `21`: ヘッドライン0件
+- `README.md` を新規追加
+  - 前提条件、実行方法、`--help`、終了コード方針を記載
+  - 「最新」の定義（先頭 `item`）を明記
+
+**検証結果**
+- `./scripts/show_latest_headline.sh` → ヘッドライン1行出力、`0`
+- `./scripts/show_latest_headline.sh >/tmp/headline.out && test -s /tmp/headline.out` → 成功
+- `./scripts/show_latest_headline.sh --help` → ヘルプ表示、`0`
+- 異常系確認:
+  - `NEWS_FEED_URL='https://httpbin.org/status/404' ./scripts/show_latest_headline.sh` → エラーメッセージ、`11`
+  - `NEWS_FEED_URL='https://httpbin.org/json' ./scripts/show_latest_headline.sh` → エラーメッセージ、`20`
+- 品質ゲート: `git diff --check` → 問題なし
+
+**実行ログ出力**
+- `/home/runner/work/FlowSmith/FlowSmith/.agent/runs/masaakiayb-muselucid-project-template/20260220T013313Z-issue-1/coder_output_attempt_1.md` に記載済み。
+
+
+# Stderr
+
+2026-02-20T01:33:48.063215Z ERROR codex_core::auth: Failed to refresh token: 401 Unauthorized: {
+  "error": {
+    "message": "Your refresh token has already been used to generate a new access token. Please try signing in again.",
+    "type": "invalid_request_error",
+    "param": null,
+    "code": "refresh_token_reused"
+  }
+}
+2026-02-20T01:33:48.063358Z ERROR codex_core::auth: Failed to refresh token: Your access token could not be refreshed because your refresh token was already used. Please log out and sign in again.
+OpenAI Codex v0.104.0 (research preview)
+--------
+workdir: /home/runner/work/FlowSmith/FlowSmith/.agent/workspaces/masaakiayb-muselucid-project-template
+model: gpt-5.3-codex
+provider: openai
+approval: never
+sandbox: danger-full-access
+reasoning effort: none
+reasoning summaries: auto
+session id: 019c78ae-8038-77c1-ae01-4649f6503c33
+--------
+user
+あなたは Coder エージェントです。
+
+リポジトリ: /home/runner/work/FlowSmith/FlowSmith/.agent/workspaces/masaakiayb-muselucid-project-template
+プロジェクト: 
+対象リポジトリ: MasaakiAYB/muselucid-project-template
+ブランチ: agent/issue-1-1
+試行: 1/3
+
+Issue:
+- 番号: #1
+- タイトル: 最新ニュースヘッドライン1件を取得して表示する
+- URL: https://github.com/MasaakiAYB/muselucid-project-template/issues/1
+
+Issue 本文:
+Plan-ID: ISSUE-0001
+Title: 最新ニュースヘッドライン1件を取得して表示する
+
+### Goal / Summary
+外部ニュースソースから最新のヘッドラインを1件取得し、実行結果として表示する最小機能を実装する。
+
+### Scope
+- ニュースソースを1つ選定し、ヘッドライン取得ロジックを実装する。
+- 取得した最新ヘッドラインのタイトルを整形して表示する。
+- 通信失敗・レスポンス不正時のエラーハンドリングを実装する。
+
+### Non-goals
+- 複数ニュースソースの横断取得
+- 複数件の保存・履歴表示
+- Web UI の実装
+
+### Acceptance Criteria (DoD)
+- 実行コマンドで最新ヘッドライン1件のタイトルが表示される。
+- 取得失敗時に非0終了コードとエラーメッセージを返す。
+- README に実行方法と前提条件が記載される。
+
+### Verify
+- ./scripts/show_latest_headline.sh
+- ./scripts/show_latest_headline.sh >/tmp/headline.out && test -s /tmp/headline.out
+- ./scripts/show_latest_headline.sh --help
+
+### Constraints
+- MVP は単一のニュースソースのみを対象にする。
+- ニュース取得は公開フィードまたは無料 API を優先し、運用コストを抑える。
+- ネットワーク障害時を考慮し、失敗時の終了コードとメッセージを明示する。
+
+### Risk
+low
+
+### Depends On
+- (none)
+
+
+追加フィードバック（PRレビュー/コメント）:
+_追加フィードバックなし_
+
+計画:
+## 1. スコープ（対象/対象外）
+
+### 対象
+- 単一ニュースソース（公開RSSまたは無料API）から「最新1件」を取得するCLIスクリプトを実装する。
+- 取得結果からヘッドラインタイトルのみを整形して標準出力へ表示する。
+- 通信失敗・HTTPエラー・レスポンス形式不正・空データ時に、エラーメッセージを標準エラー出力へ表示し非0終了する。
+- `--help` オプションを実装する。
+- READMEに前提条件、実行方法、失敗時挙動を記載する。
+
+### 対象外
+- 複数ニュースソースの切り替え/横断取得
+- 複数件表示、保存、履歴管理
+- Web UI、常駐処理、スケジューラ連携
+
+---
+
+## 2. 実装手順（番号付き、各手順に完了条件付き）
+
+1. ニュースソースと取得方式を確定する（公開RSS優先、APIキー不要を優先）。
+完了条件: 利用URL・データ形式（XML/JSON）・利用理由（無料/安定/キー不要）をREADME下書きに明記できる。
+
+2. `scripts/show_latest_headline.sh` を新規作成し、CLI骨格を実装する。
+完了条件: `--help` で使用方法を表示し、通常実行時の処理フロー（取得→抽出→表示）に入る。
+
+3. ヘッドライン取得ロジックを実装する（例: `curl` + パーサ）。
+完了条件: 正常レスポンス時に最新1件のタイトル文字列のみを標準出力へ1行で出力できる。
+
+4. エラーハンドリングを実装する（終了コードを明確化）。
+完了条件: 以下を判別して非0終了できる。
+- ネットワーク/タイムアウト
+- HTTPステータス異常
+- 解析失敗（形式不正）
+- ヘッドライン0件
+
+5. READMEを作成または更新する。
+完了条件: 前提コマンド（例: `bash`, `curl`, `xmllint`/`jq` など）、実行例、`--help`、代表的な失敗時メッセージと終了コード方針を記載する。
+
+6. 実行確認と最終調整を行う。
+完了条件: Issue記載のVerifyコマンドがすべて通り、DoD 3項目を満たす。
+
+---
+
+## 3. リスクと対策
+
+- リスク: 無料ニュースソースのレスポンス形式変更でパースが壊れる。  
+対策: パーサ依存を最小化し、必須フィールド欠落時は明示エラーにする。READMEに対象ソース固定を明記する。
+
+- リスク: CI/実行環境にXML/JSONパーサがない。  
+対策: 依存を最小にする（可能ならPOSIX + `curl`中心）。追加依存が必要な場合はREADMEに必須として明記する。
+
+- リスク: 一時的なネットワーク障害で不安定。  
+対策: `curl` にタイムアウト・リトライ（最小回数）を設定し、最終的に失敗時は非0終了と短い原因メッセージを返す。
+
+- リスク: 「最新」の定義ずれ（配信順/公開時刻順）。  
+対策: 採用ソースの先頭要素を「最新」と定義しREADMEに明記する。
+
+---
+
+## 4. 検証計画（実行コマンドと期待結果）
+
+1. `./scripts/show_latest_headline.sh`  
+期待結果: 標準出力にヘッドラインタイトル1行が表示され、終了コード0。
+
+2. `./scripts/show_latest_headline.sh >/tmp/headline.out && test -s /tmp/headline.out`  
+期待結果: コマンド成功（終了コード0）、`/tmp/headline.out` が空でない。
+
+3. `./scripts/show_latest_headline.sh --help`  
+期待結果: 使い方、オプション、前提条件が表示され、終了コード0。
+
+4. 異常系確認（例: 一時的にURLを無効値へ変更して実行）  
+期待結果: 標準エラー出力に原因メッセージ、終了コードは非0。
+
+前回試行のフィードバック:
+None
+
+必須の品質ゲート:
+- `git diff --check`
+
+ルール:
+- 変更は最小限にし、Issue のスコープに集中すること。
+- テストが不足している場合は、可能な範囲で追加または更新すること。
+- 無関係なファイルは変更しないこと。
+- UI変更（画面見た目/レイアウト/スタイル/フロントUI部品）を含む場合は、変更箇所のスクリーンショットまたはアニメーションGIF（`.png/.jpg/.jpeg/.webp/.gif`）を `/home/runner/work/FlowSmith/FlowSmith/.agent/workspaces/masaakiayb-muselucid-project-template/.flowsmith/ui-evidence` に保存すること（対象リポジトリ配下。artifact-only モードではコミット前に自動で除外される）。
+- UI証跡画像は実画面キャプチャを使用し、文字が判読可能であること。日本語文字を含む場合は文字化けしていないこと。プレースホルダ画像（矩形塗りつぶし等）で代替しないこと。
+
+編集後、`/home/runner/work/FlowSmith/FlowSmith/.agent/runs/masaakiayb-muselucid-project-template/20260220T013313Z-issue-1/coder_output_attempt_1.md` に実行ログと変更ファイル要約を短く記載してください。
+
+mcp startup: no servers
+2026-02-20T01:33:48.152616Z ERROR codex_core::auth: Failed to refresh token: 401 Unauthorized: {
+  "error": {
+    "message": "Your refresh token has already been used to generate a new access token. Please try signing in again.",
+    "type": "invalid_request_error",
+    "param": null,
+    "code": "refresh_token_reused"
+  }
+}
+2026-02-20T01:33:48.152644Z ERROR codex_core::auth: Failed to refresh token: Your access token could not be refreshed because your refresh token was already used. Please log out and sign in again.
+
+thinking
+**Planning frequent commentary updates**
+codex
+依頼内容に沿って、まずリポジトリの現状（スクリプト構成とREADME）を確認し、最小差分で `show_latest_headline.sh` 実装とドキュメント追記を進めます。最初に対象ファイルを特定します。
+exec
+/bin/bash -lc 'pwd && ls -la' in /home/runner/work/FlowSmith/FlowSmith/.agent/workspaces/masaakiayb-muselucid-project-templateexec
+/bin/bash -lc 'rg --files' in /home/runner/work/FlowSmith/FlowSmith/.agent/workspaces/masaakiayb-muselucid-project-template succeeded in 51ms:
+/home/runner/work/FlowSmith/FlowSmith/.agent/workspaces/masaakiayb-muselucid-project-template
+total 28
+drwxr-xr-x 6 runner runner 4096 Feb 20 01:33 .
+drwxr-xr-x 3 runner runner 4096 Feb 20 01:33 ..
+drwxr-xr-x 3 runner runner 4096 Feb 20 01:33 .flowsmith
+drwxr-xr-x 7 runner runner 4096 Feb 20 01:33 .git
+drwxr-xr-x 4 runner runner 4096 Feb 20 01:33 .github
+-rw-r--r-- 1 runner runner   45 Feb 20 01:33 .gitignore
+drwxr-xr-x 4 runner runner 4096 Feb 20 01:33 .muselucid
+ exited 1 in 51ms:
+
+2026-02-20T01:33:52.914240Z ERROR codex_core::auth: Failed to refresh token: 401 Unauthorized: {
+  "error": {
+    "message": "Your refresh token has already been used to generate a new access token. Please try signing in again.",
+    "type": "invalid_request_error",
+    "param": null,
+    "code": "refresh_token_reused"
+  }
+}
+2026-02-20T01:33:52.914268Z ERROR codex_core::auth: Failed to refresh token: Your access token could not be refreshed because your refresh token was already used. Please log out and sign in again.
+
+thinking
+**Examining project file structure**
+codex
+リポジトリ直下に通常ファイルがほぼなく、`rg --files` では取得できませんでした。次に隠しディレクトリ配下を含めて実ファイルを探索します。
+exec
+/bin/bash -lc 'find . -maxdepth 4 -type f | sort' in /home/runner/work/FlowSmith/FlowSmith/.agent/workspaces/masaakiayb-muselucid-project-templateexec
+/bin/bash -lc 'find . -maxdepth 3 -type d | sort' in /home/runner/work/FlowSmith/FlowSmith/.agent/workspaces/masaakiayb-muselucid-project-template succeeded in 50ms:
+./.git/FETCH_HEAD
+./.git/HEAD
+./.git/ORIG_HEAD
+./.git/config
+./.git/description
+./.git/hooks/applypatch-msg.sample
+./.git/hooks/commit-msg.sample
+./.git/hooks/fsmonitor-watchman.sample
+./.git/hooks/post-update.sample
+./.git/hooks/pre-applypatch.sample
+./.git/hooks/pre-commit.sample
+./.git/hooks/pre-merge-commit.sample
+./.git/hooks/pre-push.sample
+./.git/hooks/pre-rebase.sample
+./.git/hooks/pre-receive.sample
+./.git/hooks/prepare-commit-msg.sample
+./.git/hooks/push-to-checkout.sample
+./.git/hooks/sendemail-validate.sample
+./.git/hooks/update.sample
+./.git/index
+ succeeded in 51ms:
+.
+./.flowsmith
+./.flowsmith/ui-evidence
+./.git
+./.git/hooks
+./.git/info
+./.git/logs
+./.git/logs/refs
+./.git/objects
+./.git/objects/info
+./.git/objects/pack
+./.git/refs
+./.git/refs/heads
+./.git/refs/remotes
+./.git/refs/tags
+./.github
+./.github/scripts
+./.github/workflows
+./.muselucid
+./.muselucid/plan
+2026-02-20T01:33:56.152726Z ERROR codex_core::auth: Failed to refresh token: 401 Unauthorized: {
+  "error": {
+    "message": "Your refresh token has already been used to generate a new access token. Please try signing in again.",
+    "type": "invalid_request_error",
+    "param": null,
+    "code": "refresh_token_reused"
+  }
+}
+2026-02-20T01:33:56.152754Z ERROR codex_core::auth: Failed to refresh token: Your access token could not be refreshed because your refresh token was already used. Please log out and sign in again.
+
+thinking
+**Checking issue plan for instructions**
+codex
+実装対象ファイルが未作成なので、新規追加が必要です。Issue計画ファイルを確認して命名や前提を合わせてから、`scripts` と `README` を作成します。
+exec
+/bin/bash -lc "sed -n '1,220p' .muselucid/plan/issues/ISSUE-0001.yaml" in /home/runner/work/FlowSmith/FlowSmith/.agent/workspaces/masaakiayb-muselucid-project-template succeeded in 50ms:
+id: ISSUE-0001
+title: 最新ニュースヘッドライン1件を取得して表示する
+summary: 外部ニュースソースから最新のヘッドラインを1件取得し、実行結果として表示する最小機能を実装する。
+scope:
+  - ニュースソースを1つ選定し、ヘッドライン取得ロジックを実装する。
+  - 取得した最新ヘッドラインのタイトルを整形して表示する。
+  - 通信失敗・レスポンス不正時のエラーハンドリングを実装する。
+non_goals:
+  - 複数ニュースソースの横断取得
+  - 複数件の保存・履歴表示
+  - Web UI の実装
+acceptance_criteria:
+  - 実行コマンドで最新ヘッドライン1件のタイトルが表示される。
+  - 取得失敗時に非0終了コードとエラーメッセージを返す。
+  - README に実行方法と前提条件が記載される。
+verify:
+  - ./scripts/show_latest_headline.sh
+  - ./scripts/show_latest_headline.sh >/tmp/headline.out && test -s /tmp/headline.out
+  - ./scripts/show_latest_headline.sh --help
+risk: low
+2026-02-20T01:33:58.993741Z ERROR codex_core::auth: Failed to refresh token: 401 Unauthorized: {
+  "error": {
+    "message": "Your refresh token has already been used to generate a new access token. Please try signing in again.",
+    "type": "invalid_request_error",
+    "param": null,
+    "code": "refresh_token_reused"
+  }
+}
+2026-02-20T01:33:58.993767Z ERROR codex_core::auth: Failed to refresh token: Your access token could not be refreshed because your refresh token was already used. Please log out and sign in again.
+
+thinking
+**Choosing RSS parsing strategy**
+exec
+/bin/bash -lc 'python3 --version && curl --version | head -n 1' in /home/runner/work/FlowSmith/FlowSmith/.agent/workspaces/masaakiayb-muselucid-project-template succeeded in 51ms:
+Python 3.12.12
+curl 8.5.0 (x86_64-pc-linux-gnu) libcurl/8.5.0 OpenSSL/3.0.13 zlib/1.3 brotli/1.1.0 zstd/1.5.5 libidn2/2.3.7 libpsl/0.21.2 (+libidn2/2.3.7) libssh/0.10.6/openssl/zlib nghttp2/1.59.0 librtmp/2.3 OpenLDAP/2.6.7
+2026-02-20T01:34:04.513166Z ERROR codex_core::auth: Failed to refresh token: 401 Unauthorized: {
+  "error": {
+    "message": "Your refresh token has already been used to generate a new access token. Please try signing in again.",
+    "type": "invalid_request_error",
+    "param": null,
+    "code": "refresh_token_reused"
+  }
+}
+2026-02-20T01:34:04.513191Z ERROR codex_core::auth: Failed to refresh token: Your access token could not be refreshed because your refresh token was already used. Please log out and sign in again.
+
+thinking
+**Testing RSS feed accessibility**
+codex
+`curl` と `python3` は利用可能でした。次に公開RSSの到達性を確認し、安定して取得できるURLを1つ固定してスクリプトを作成します。
+exec
+/bin/bash -lc 'curl -fsSL --max-time 10 https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml | head -n 5' in /home/runner/work/FlowSmith/FlowSmith/.agent/workspaces/masaakiayb-muselucid-project-templateexec
+/bin/bash -lc 'curl -fsSL --max-time 10 https://feeds.bbci.co.uk/news/rss.xml | head -n 5' in /home/runner/work/FlowSmith/FlowSmith/.agent/workspaces/masaakiayb-muselucid-project-template succeeded in 92ms:
+<?xml version="1.0" encoding="UTF-8"?>
+<rss xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:media="http://search.yahoo.com/mrss/" xmlns:atom="http://www.w3.org/2005/Atom" xmlns:nyt="http://www.nytimes.com/namespaces/rss/2.0" version="2.0">
+  <channel>
+    <title>NYT &gt; Top Stories</title>
+    <link>https://www.nytimes.com</link>
+curl: (23) Failure writing output to destination
+ succeeded in 176ms:
+<?xml version="1.0" encoding="UTF-8"?><rss xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:content="http://purl.org/rss/1.0/modules/content/" xmlns:atom="http://www.w3.org/2005/Atom" version="2.0" xmlns:media="http://search.yahoo.com/mrss/">
+    <channel>
+        <title><![CDATA[BBC News]]></title>
+        <description><![CDATA[BBC News - News Front Page]]></description>
+        <link>https://www.bbc.co.uk/news</link>
+curl: (23) Failure writing output to destination
+2026-02-20T01:34:08.868523Z ERROR codex_core::auth: Failed to refresh token: 401 Unauthorized: {
+  "error": {
+    "message": "Your refresh token has already been used to generate a new access token. Please try signing in again.",
+    "type": "invalid_request_error",
+    "param": null,
+    "code": "refresh_token_reused"
+  }
+}
+2026-02-20T01:34:08.868556Z ERROR codex_core::auth: Failed to refresh token: Your access token could not be refreshed because your refresh token was already used. Please log out and sign in again.
+
+thinking
+**Designing robust RSS headline fetcher**
+codex
+取得元は APIキー不要で到達性が高い RSS（BBC News）に固定します。これから `scripts/show_latest_headline.sh` を新規作成し、`curl` の失敗分類と XML パース失敗・0件時の非0終了を実装します。
+exec
+/bin/bash -lc "mkdir -p scripts && cat > scripts/show_latest_headline.sh <<'EOF'
+#"'!/usr/bin/env bash
+set -u
+
+FEED_URL="${NEWS_FEED_URL:-https://feeds.bbci.co.uk/news/rss.xml}"
+
+usage() {
+  cat <<USAGE
+Usage: ./scripts/show_latest_headline.sh [--help]
+
+Fetch and print the latest headline title from a single RSS feed.
+
+Options:
+  --help    Show this help and exit
+
+Environment:
+  NEWS_FEED_URL  Override RSS feed URL (default: ${FEED_URL})
+
+Exit codes:
+  0   Success
+  2   Invalid arguments
+  10  Network / timeout error while fetching feed
+  11  HTTP error while fetching feed
+  20  Failed to parse feed response
+  21  No headline found in feed
+USAGE
+}
+
+if [[ "${1:-}" == "--help" ]]; then
+  usage
+  exit 0
+fi
+
+if [[ $# -gt 0 ]]; then
+  echo "ERROR: unknown option: $1" >&2
+  usage >&2
+  exit 2
+fi
+
+if ! command -v curl >/dev/null 2>&1; then
+  echo "ERROR: curl is required but not found" >&2
+  exit 10
+fi
+
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "ERROR: python3 is required but not found" >&2
+  exit 20
+fi
+
+tmp_file="$(mktemp)"
+cleanup() {
+  rm -f "$tmp_file"
+}
+trap cleanup EXIT
+
+if ! curl -fsSL '"\\
+  --connect-timeout 5 \\
+  --max-time 15 \\
+  --retry 2 \\
+  --retry-delay 1 \\
+  --retry-all-errors \\
+  \""'$FEED_URL" '"\\
+  -o \""'$tmp_file"; then
+  rc=$?
+  if [[ $rc -eq 22 ]]; then
+    echo "ERROR: failed to fetch feed (HTTP error)" >&2
+    exit 11
+  fi
+  echo "ERROR: failed to fetch feed (network or timeout error)" >&2
+  exit 10
+fi
+
+if ! headline="$(python3 - "$tmp_file" <<'"'PY'
+import sys
+import xml.etree.ElementTree as ET
+
+path = sys.argv[1]
+
+try:
+    root = ET.parse(path).getroot()
+except Exception:
+    print(\"ERROR: failed to parse feed response\", file=sys.stderr)
+    sys.exit(20)
+
+title = None
+
+for node in root.findall('.//item/title'):
+    text = (node.text or '').strip()
+    if text:
+        title = text
+        break
+
+if not title:
+    atom_entry_title_path = './/{http://www.w3.org/2005/Atom}entry/{http://www.w3.org/2005/Atom}title'
+    for node in root.findall(atom_entry_title_path):
+        text = (node.text or '').strip()
+        if text:
+            title = text
+            break
+
+if not title:
+    print(\"ERROR: no headline found in feed\", file=sys.stderr)
+    sys.exit(21)
+
+print(' '.join(title.split()))
+PY
+)\"; then
+  rc="'$?
+  if [[ $rc -eq 21 ]]; then
+    exit 21
+  fi
+  exit 20
+fi
+
+printf '"'%s\\n' \""'$headline"
+EOF
+chmod +x scripts/show_latest_headline.sh' in /home/runner/work/FlowSmith/FlowSmith/.agent/workspaces/masaakiayb-muselucid-project-template succeeded in 51ms:
+
+2026-02-20T01:34:34.217769Z ERROR codex_core::auth: Failed to refresh token: 401 Unauthorized: {
+  "error": {
+    "message": "Your refresh token has already been used to generate a new access token. Please try signing in again.",
+    "type": "invalid_request_error",
+    "param": null,
+    "code": "refresh_token_reused"
+  }
+}
+2026-02-20T01:34:34.217790Z ERROR codex_core::auth: Failed to refresh token: Your access token could not be refreshed because your refresh token was already used. Please log out and sign in again.
+
+thinking
+**Planning README creation**
+codex
+スクリプトを追加したので、続けて README に前提条件・実行方法・終了コード方針（失敗時含む）を追記します。
+exec
+/bin/bash -lc "cat > README.md <<'EOF'
+# muselucid-project-template
+
+単一ニュースソースから最新ヘッドライン1件を表示する最小CLIです。
+
+## ニュースソース
+- URL: "'`https://feeds.bbci.co.uk/news/rss.xml`
+- 形式: RSS (XML)
+- 選定理由: APIキー不要、無料で取得可能
+
+最新の定義は「フィード先頭の最初の `item` の `title`」です。
+
+## 前提条件
+- `bash`
+- `curl`
+- `python3`（標準ライブラリの XML パーサを使用）
+
+## 実行方法
+```bash
+./scripts/show_latest_headline.sh
+```
+
+標準出力にヘッドラインタイトル1行を表示します。
+
+## ヘルプ
+```bash
+./scripts/show_latest_headline.sh --help
+```
+
+## 終了コード
+- `0`: 成功
+- `2`: 不正な引数
+- `10`: ネットワーク/タイムアウトで取得失敗
+- `11`: HTTPエラーで取得失敗
+- `20`: レスポンスの解析失敗
+- `21`: ヘッドライン0件
+
+## 取得元URLの上書き
+検証時などに `NEWS_FEED_URL` で取得先を変更できます。
+
+```bash
+NEWS_FEED_URL="https://example.invalid/rss.xml" ./scripts/show_latest_headline.sh
+```
+EOF' in /home/runner/work/FlowSmith/FlowSmith/.agent/workspaces/masaakiayb-muselucid-project-template succeeded in 51ms:
+
+2026-02-20T01:34:41.501915Z ERROR codex_core::auth: Failed to refresh token: 401 Unauthorized: {
+  "error": {
+    "message": "Your refresh token has already been used to generate a new access token. Please try signing in again.",
+    "type": "invalid_request_error",
+    "param": null,
+    "code": "refresh_token_reused"
+  }
+}
+2026-02-20T01:34:41.501941Z ERROR codex_core::auth: Failed to refresh token: Your access token could not be refreshed because your refresh token was already used. Please log out and sign in again.
+
+thinking
+**Planning verification and error testing**
+codex
+これから Issue の Verify コマンドを実行し、加えて異常系（無効URL）で非0終了とエラーメッセージを確認します。結果に応じて必要なら微調整します。
+exec
+/bin/bash -lc './scripts/show_latest_headline.sh --help' in /home/runner/work/FlowSmith/FlowSmith/.agent/workspaces/masaakiayb-muselucid-project-template succeeded in 51ms:
+Usage: ./scripts/show_latest_headline.sh [--help]
+
+Fetch and print the latest headline title from a single RSS feed.
+
+Options:
+  --help    Show this help and exit
+
+Environment:
+  NEWS_FEED_URL  Override RSS feed URL (default: https://feeds.bbci.co.uk/news/rss.xml)
+
+Exit codes:
+  0   Success
+  2   Invalid arguments
+  10  Network / timeout error while fetching feed
+  11  HTTP error while fetching feed
+  20  Failed to parse feed response
+  21  No headline found in feed
+exec
+/bin/bash -lc ./scripts/show_latest_headline.sh in /home/runner/work/FlowSmith/FlowSmith/.agent/workspaces/masaakiayb-muselucid-project-template succeeded in 347ms:
+Andrew released under investigation after arrest on suspicion of misconduct in public office
+2026-02-20T01:34:46.784971Z ERROR codex_core::auth: Failed to refresh token: 401 Unauthorized: {
+  "error": {
+    "message": "Your refresh token has already been used to generate a new access token. Please try signing in again.",
+    "type": "invalid_request_error",
+    "param": null,
+    "code": "refresh_token_reused"
+  }
+}
+2026-02-20T01:34:46.784999Z ERROR codex_core::auth: Failed to refresh token: Your access token could not be refreshed because your refresh token was already used. Please log out and sign in again.
+
+thinking
+**Planning second verify command**
+exec
+/bin/bash -lc './scripts/show_latest_headline.sh >/tmp/headline.out && test -s /tmp/headline.out && echo "verify2_ok"' in /home/runner/work/FlowSmith/FlowSmith/.agent/workspaces/masaakiayb-muselucid-project-template succeeded in 95ms:
+verify2_ok
+2026-02-20T01:34:49.597642Z ERROR codex_core::auth: Failed to refresh token: 401 Unauthorized: {
+  "error": {
+    "message": "Your refresh token has already been used to generate a new access token. Please try signing in again.",
+    "type": "invalid_request_error",
+    "param": null,
+    "code": "refresh_token_reused"
+  }
+}
+2026-02-20T01:34:49.597671Z ERROR codex_core::auth: Failed to refresh token: Your access token could not be refreshed because your refresh token was already used. Please log out and sign in again.
+
+thinking
+**Planning error handling tests**
+exec
+/bin/bash -lc "NEWS_FEED_URL='https://example.invalid/rss.xml' ./scripts/show_latest_headline.sh; echo \"rc="'$?"' in /home/runner/work/FlowSmith/FlowSmith/.agent/workspaces/masaakiayb-muselucid-project-templateexec
+/bin/bash -lc "NEWS_FEED_URL='https://httpbin.org/status/404' ./scripts/show_latest_headline.sh; echo \"rc="'$?"' in /home/runner/work/FlowSmith/FlowSmith/.agent/workspaces/masaakiayb-muselucid-project-template succeeded in 1.94s:
+curl: (6) Could not resolve host: example.invalid
+curl: (6) Could not resolve host: example.invalid
+ERROR: failed to fetch feed (network or timeout error)
+rc=10
+ succeeded in 2.10s:
+curl: (22) The requested URL returned error: 404
+curl: (22) The requested URL returned error: 404
+curl: (22) The requested URL returned error: 404
+ERROR: failed to fetch feed (network or timeout error)
+rc=10
+2026-02-20T01:34:56.535793Z ERROR codex_core::auth: Failed to refresh token: 401 Unauthorized: {
+  "error": {
+    "message": "Your refresh token has already been used to generate a new access token. Please try signing in again.",
+    "type": "invalid_request_error",
+    "param": null,
+    "code": "refresh_token_reused"
+  }
+}
+2026-02-20T01:34:56.535819Z ERROR codex_core::auth: Failed to refresh token: Your access token could not be refreshed because your refresh token was already used. Please log out and sign in again.
+
+thinking
+**Fixing curl error handling and retries**
+codex
+HTTPエラー分類に不具合を確認しました（`! curl` の書き方で終了コード取得を誤っていました）。ここを修正し、HTTP 404 が `11` で返るように直します。
+file update
+M /home/runner/work/FlowSmith/FlowSmith/.agent/workspaces/masaakiayb-muselucid-project-template/scripts/show_latest_headline.sh
+@@ -54,3 +54,3 @@
+ 
+-if ! curl -fsSL \
++curl -fsSL \
+   --connect-timeout 5 \
+@@ -59,7 +59,8 @@
+   --retry-delay 1 \
+-  --retry-all-errors \
++  --retry-connrefused \
+   "$FEED_URL" \
+-  -o "$tmp_file"; then
+-  rc=$?
+-  if [[ $rc -eq 22 ]]; then
++  -o "$tmp_file"
++curl_rc=$?
++if [[ $curl_rc -ne 0 ]]; then
++  if [[ $curl_rc -eq 22 ]]; then
+     echo "ERROR: failed to fetch feed (HTTP error)" >&2
+apply_patch(auto_approved=true) exited 0 in 3ms:
+Success. Updated the following files:
+M scripts/show_latest_headline.sh
+file update:
+diff --git a/scripts/show_latest_headline.sh b/scripts/show_latest_headline.sh
+index d31e067f4f83488e2cbe1f21fd6463a7d808ef2b..232a683e544d4bed4d191e1e62654b0a7366565a
+--- a/scripts/show_latest_headline.sh
++++ b/scripts/show_latest_headline.sh
+@@ -52,16 +52,17 @@
+ }
+ trap cleanup EXIT
+ 
+-if ! curl -fsSL \
++curl -fsSL \
+   --connect-timeout 5 \
+   --max-time 15 \
+   --retry 2 \
+   --retry-delay 1 \
+-  --retry-all-errors \
++  --retry-connrefused \
+   "$FEED_URL" \
+-  -o "$tmp_file"; then
+-  rc=$?
+-  if [[ $rc -eq 22 ]]; then
++  -o "$tmp_file"
++curl_rc=$?
++if [[ $curl_rc -ne 0 ]]; then
++  if [[ $curl_rc -eq 22 ]]; then
+     echo "ERROR: failed to fetch feed (HTTP error)" >&2
+     exit 11
+   fi
+
+file update:
+diff --git a/scripts/show_latest_headline.sh b/scripts/show_latest_headline.sh
+index d31e067f4f83488e2cbe1f21fd6463a7d808ef2b..232a683e544d4bed4d191e1e62654b0a7366565a
+--- a/scripts/show_latest_headline.sh
++++ b/scripts/show_latest_headline.sh
+@@ -52,16 +52,17 @@
+ }
+ trap cleanup EXIT
+ 
+-if ! curl -fsSL \
++curl -fsSL \
+   --connect-timeout 5 \
+   --max-time 15 \
+   --retry 2 \
+   --retry-delay 1 \
+-  --retry-all-errors \
++  --retry-connrefused \
+   "$FEED_URL" \
+-  -o "$tmp_file"; then
+-  rc=$?
+-  if [[ $rc -eq 22 ]]; then
++  -o "$tmp_file"
++curl_rc=$?
++if [[ $curl_rc -ne 0 ]]; then
++  if [[ $curl_rc -eq 22 ]]; then
+     echo "ERROR: failed to fetch feed (HTTP error)" >&2
+     exit 11
+   fi
+
+2026-02-20T01:35:07.786616Z ERROR codex_core::auth: Failed to refresh token: 401 Unauthorized: {
+  "error": {
+    "message": "Your refresh token has already been used to generate a new access token. Please try signing in again.",
+    "type": "invalid_request_error",
+    "param": null,
+    "code": "refresh_token_reused"
+  }
+}
+2026-02-20T01:35:07.786648Z ERROR codex_core::auth: Failed to refresh token: Your access token could not be refreshed because your refresh token was already used. Please log out and sign in again.
+
+thinking
+**Verifying command script functionality**
+exec
+/bin/bash -lc ./scripts/show_latest_headline.sh in /home/runner/work/FlowSmith/FlowSmith/.agent/workspaces/masaakiayb-muselucid-project-templateexec
+/bin/bash -lc "NEWS_FEED_URL='https://httpbin.org/status/404' ./scripts/show_latest_headline.sh; echo \"rc="'$?"' in /home/runner/work/FlowSmith/FlowSmith/.agent/workspaces/masaakiayb-muselucid-project-template succeeded in 50ms:
+Andrew released under investigation after arrest on suspicion of misconduct in public office
+ succeeded in 51ms:
+curl: (22) The requested URL returned error: 404
+ERROR: failed to fetch feed (HTTP error)
+rc=11
+file update:
+diff --git a/scripts/show_latest_headline.sh b/scripts/show_latest_headline.sh
+index d31e067f4f83488e2cbe1f21fd6463a7d808ef2b..232a683e544d4bed4d191e1e62654b0a7366565a
+--- a/scripts/show_latest_headline.sh
++++ b/scripts/show_latest_headline.sh
+@@ -52,16 +52,17 @@
+ }
+ trap cleanup EXIT
+ 
+-if ! curl -fsSL \
++curl -fsSL \
+   --connect-timeout 5 \
+   --max-time 15 \
+   --retry 2 \
+   --retry-delay 1 \
+-  --retry-all-errors \
++  --retry-connrefused \
+   "$FEED_URL" \
+-  -o "$tmp_file"; then
+-  rc=$?
+-  if [[ $rc -eq 22 ]]; then
++  -o "$tmp_file"
++curl_rc=$?
++if [[ $curl_rc -ne 0 ]]; then
++  if [[ $curl_rc -eq 22 ]]; then
+     echo "ERROR: failed to fetch feed (HTTP error)" >&2
+     exit 11
+   fi
+
+2026-02-20T01:35:10.848892Z ERROR codex_core::auth: Failed to refresh token: 401 Unauthorized: {
+  "error": {
+    "message": "Your refresh token has already been used to generate a new access token. Please try signing in again.",
+    "type": "invalid_request_error",
+    "param": null,
+    "code": "refresh_token_reused"
+  }
+}
+2026-02-20T01:35:10.848920Z ERROR codex_core::auth: Failed to refresh token: Your access token could not be refreshed because your refresh token was already used. Please log out and sign in again.
+
+thinking
+**Planning second verification run**
+exec
+/bin/bash -lc './scripts/show_latest_headline.sh --help >/tmp/headline_help.out && test -s /tmp/headline_help.out && echo "verify3_ok"' in /home/runner/work/FlowSmith/FlowSmith/.agent/workspaces/masaakiayb-muselucid-project-templateexec
+/bin/bash -lc './scripts/show_latest_headline.sh >/tmp/headline.out && test -s /tmp/headline.out && echo "verify2_ok"' in /home/runner/work/FlowSmith/FlowSmith/.agent/workspaces/masaakiayb-muselucid-project-template succeeded in 50ms:
+verify3_ok
+ succeeded in 51ms:
+verify2_ok
+file update:
+diff --git a/scripts/show_latest_headline.sh b/scripts/show_latest_headline.sh
+index d31e067f4f83488e2cbe1f21fd6463a7d808ef2b..232a683e544d4bed4d191e1e62654b0a7366565a
+--- a/scripts/show_latest_headline.sh
++++ b/scripts/show_latest_headline.sh
+@@ -52,16 +52,17 @@
+ }
+ trap cleanup EXIT
+ 
+-if ! curl -fsSL \
++curl -fsSL \
+   --connect-timeout 5 \
+   --max-time 15 \
+   --retry 2 \
+   --retry-delay 1 \
+-  --retry-all-errors \
++  --retry-connrefused \
+   "$FEED_URL" \
+-  -o "$tmp_file"; then
+-  rc=$?
+-  if [[ $rc -eq 22 ]]; then
++  -o "$tmp_file"
++curl_rc=$?
++if [[ $curl_rc -ne 0 ]]; then
++  if [[ $curl_rc -eq 22 ]]; then
+     echo "ERROR: failed to fetch feed (HTTP error)" >&2
+     exit 11
+   fi
+
+2026-02-20T01:35:14.149394Z ERROR codex_core::auth: Failed to refresh token: 401 Unauthorized: {
+  "error": {
+    "message": "Your refresh token has already been used to generate a new access token. Please try signing in again.",
+    "type": "invalid_request_error",
+    "param": null,
+    "code": "refresh_token_reused"
+  }
+}
+2026-02-20T01:35:14.149422Z ERROR codex_core::auth: Failed to refresh token: Your access token could not be refreshed because your refresh token was already used. Please log out and sign in again.
+
+thinking
+**Planning git quality checks**
+codex
+実装・検証は通ったので、最後に `git diff --check` を実行して品質ゲートを確認し、実行ログファイルを指定パスへ出力します。
+exec
+/bin/bash -lc 'git diff --check' in /home/runner/work/FlowSmith/FlowSmith/.agent/workspaces/masaakiayb-muselucid-project-templateexec
+/bin/bash -lc 'git status --short' in /home/runner/work/FlowSmith/FlowSmith/.agent/workspaces/masaakiayb-muselucid-project-template succeeded in 50ms:
+
+ succeeded in 51ms:
+?? README.md
+?? scripts/
+file update:
+diff --git a/scripts/show_latest_headline.sh b/scripts/show_latest_headline.sh
+index d31e067f4f83488e2cbe1f21fd6463a7d808ef2b..232a683e544d4bed4d191e1e62654b0a7366565a
+--- a/scripts/show_latest_headline.sh
++++ b/scripts/show_latest_headline.sh
+@@ -52,16 +52,17 @@
+ }
+ trap cleanup EXIT
+ 
+-if ! curl -fsSL \
++curl -fsSL \
+   --connect-timeout 5 \
+   --max-time 15 \
+   --retry 2 \
+   --retry-delay 1 \
+-  --retry-all-errors \
++  --retry-connrefused \
+   "$FEED_URL" \
+-  -o "$tmp_file"; then
+-  rc=$?
+-  if [[ $rc -eq 22 ]]; then
++  -o "$tmp_file"
++curl_rc=$?
++if [[ $curl_rc -ne 0 ]]; then
++  if [[ $curl_rc -eq 22 ]]; then
+     echo "ERROR: failed to fetch feed (HTTP error)" >&2
+     exit 11
+   fi
+
+2026-02-20T01:35:17.243429Z ERROR codex_core::auth: Failed to refresh token: 401 Unauthorized: {
+  "error": {
+    "message": "Your refresh token has already been used to generate a new access token. Please try signing in again.",
+    "type": "invalid_request_error",
+    "param": null,
+    "code": "refresh_token_reused"
+  }
+}
+2026-02-20T01:35:17.243454Z ERROR codex_core::auth: Failed to refresh token: Your access token could not be refreshed because your refresh token was already used. Please log out and sign in again.
+
+thinking
+**Creating execution log file**
+exec
+/bin/bash -lc "cat > /home/runner/work/FlowSmith/FlowSmith/.agent/runs/masaakiayb-muselucid-project-template/20260220T013313Z-issue-1/coder_output_attempt_1.md <<'EOF'
+# Attempt 1 Log
+
+## 実行ログ（要約）
+- 既存ファイル調査: "'`find . -maxdepth 4 -type f`
+- 実装: `scripts/show_latest_headline.sh` を新規作成（RSS取得、1件抽出、`--help`、エラーハンドリング）
+- ドキュメント: `README.md` を新規作成（前提条件、実行方法、終了コード）
+- 検証:
+  - `./scripts/show_latest_headline.sh` -> ヘッドライン1行を出力、終了コード0
+  - `./scripts/show_latest_headline.sh >/tmp/headline.out && test -s /tmp/headline.out` -> 成功
+  - `./scripts/show_latest_headline.sh --help` -> ヘルプ表示、終了コード0
+  - `NEWS_FEED_URL='"'https://httpbin.org/status/404' ./scripts/show_latest_headline.sh"'` -> エラーメッセージ表示、終了コード11
+- 品質ゲート: `git diff --check` -> 問題なし
+
+## 変更ファイル要約
+- `scripts/show_latest_headline.sh`: 最新RSSヘッドライン1件取得CLIを追加。
+- `README.md`: 実行方法・前提条件・終了コード・取得元情報を追加。
+EOF' in /home/runner/work/FlowSmith/FlowSmith/.agent/workspaces/masaakiayb-muselucid-project-template succeeded in 51ms:
+
+file update:
+diff --git a/scripts/show_latest_headline.sh b/scripts/show_latest_headline.sh
+index d31e067f4f83488e2cbe1f21fd6463a7d808ef2b..232a683e544d4bed4d191e1e62654b0a7366565a
+--- a/scripts/show_latest_headline.sh
++++ b/scripts/show_latest_headline.sh
+@@ -52,16 +52,17 @@
+ }
+ trap cleanup EXIT
+ 
+-if ! curl -fsSL \
++curl -fsSL \
+   --connect-timeout 5 \
+   --max-time 15 \
+   --retry 2 \
+   --retry-delay 1 \
+-  --retry-all-errors \
++  --retry-connrefused \
+   "$FEED_URL" \
+-  -o "$tmp_file"; then
+-  rc=$?
+-  if [[ $rc -eq 22 ]]; then
++  -o "$tmp_file"
++curl_rc=$?
++if [[ $curl_rc -ne 0 ]]; then
++  if [[ $curl_rc -eq 22 ]]; then
+     echo "ERROR: failed to fetch feed (HTTP error)" >&2
+     exit 11
+   fi
+
+2026-02-20T01:35:26.256346Z ERROR codex_core::auth: Failed to refresh token: 401 Unauthorized: {
+  "error": {
+    "message": "Your refresh token has already been used to generate a new access token. Please try signing in again.",
+    "type": "invalid_request_error",
+    "param": null,
+    "code": "refresh_token_reused"
+  }
+}
+2026-02-20T01:35:26.256372Z ERROR codex_core::auth: Failed to refresh token: Your access token could not be refreshed because your refresh token was already used. Please log out and sign in again.
+
+thinking
+**Considering final diff and line references**
+exec
+/bin/bash -lc "sed -n '1,240p' scripts/show_latest_headline.sh" in /home/runner/work/FlowSmith/FlowSmith/.agent/workspaces/masaakiayb-muselucid-project-templateexec
+/bin/bash -lc "sed -n '1,220p' README.md" in /home/runner/work/FlowSmith/FlowSmith/.agent/workspaces/masaakiayb-muselucid-project-template succeeded in 51ms:
+# muselucid-project-template
+
+単一ニュースソースから最新ヘッドライン1件を表示する最小CLIです。
+
+## ニュースソース
+- URL: `https://feeds.bbci.co.uk/news/rss.xml`
+- 形式: RSS (XML)
+- 選定理由: APIキー不要、無料で取得可能
+
+最新の定義は「フィード先頭の最初の `item` の `title`」です。
+
+## 前提条件
+- `bash`
+- `curl`
+- `python3`（標準ライブラリの XML パーサを使用）
+
+## 実行方法
+```bash
+./scripts/show_latest_headline.sh
+```
+ succeeded in 51ms:
+#!/usr/bin/env bash
+set -u
+
+FEED_URL="${NEWS_FEED_URL:-https://feeds.bbci.co.uk/news/rss.xml}"
+
+usage() {
+  cat <<USAGE
+Usage: ./scripts/show_latest_headline.sh [--help]
+
+Fetch and print the latest headline title from a single RSS feed.
+
+Options:
+  --help    Show this help and exit
+
+Environment:
+  NEWS_FEED_URL  Override RSS feed URL (default: ${FEED_URL})
+
+Exit codes:
+  0   Success
+  2   Invalid arguments
+file update:
+diff --git a/scripts/show_latest_headline.sh b/scripts/show_latest_headline.sh
+index d31e067f4f83488e2cbe1f21fd6463a7d808ef2b..232a683e544d4bed4d191e1e62654b0a7366565a
+--- a/scripts/show_latest_headline.sh
++++ b/scripts/show_latest_headline.sh
+@@ -52,16 +52,17 @@
+ }
+ trap cleanup EXIT
+ 
+-if ! curl -fsSL \
++curl -fsSL \
+   --connect-timeout 5 \
+   --max-time 15 \
+   --retry 2 \
+   --retry-delay 1 \
+-  --retry-all-errors \
++  --retry-connrefused \
+   "$FEED_URL" \
+-  -o "$tmp_file"; then
+-  rc=$?
+-  if [[ $rc -eq 22 ]]; then
++  -o "$tmp_file"
++curl_rc=$?
++if [[ $curl_rc -ne 0 ]]; then
++  if [[ $curl_rc -eq 22 ]]; then
+     echo "ERROR: failed to fetch feed (HTTP error)" >&2
+     exit 11
+   fi
+
+2026-02-20T01:35:28.900507Z ERROR codex_core::auth: Failed to refresh token: 401 Unauthorized: {
+  "error": {
+    "message": "Your refresh token has already been used to generate a new access token. Please try signing in again.",
+    "type": "invalid_request_error",
+    "param": null,
+    "code": "refresh_token_reused"
+  }
+}
+2026-02-20T01:35:28.900556Z ERROR codex_core::auth: Failed to refresh token: Your access token could not be refreshed because your refresh token was already used. Please log out and sign in again.
+
+thinking
+**Planning script error handling test**
+exec
+/bin/bash -lc "NEWS_FEED_URL='https://httpbin.org/json' ./scripts/show_latest_headline.sh; echo \"rc="'$?"' in /home/runner/work/FlowSmith/FlowSmith/.agent/workspaces/masaakiayb-muselucid-project-template succeeded in 51ms:
+ERROR: failed to parse feed response
+rc=20
+file update:
+diff --git a/scripts/show_latest_headline.sh b/scripts/show_latest_headline.sh
+index d31e067f4f83488e2cbe1f21fd6463a7d808ef2b..232a683e544d4bed4d191e1e62654b0a7366565a
+--- a/scripts/show_latest_headline.sh
++++ b/scripts/show_latest_headline.sh
+@@ -52,16 +52,17 @@
+ }
+ trap cleanup EXIT
+ 
+-if ! curl -fsSL \
++curl -fsSL \
+   --connect-timeout 5 \
+   --max-time 15 \
+   --retry 2 \
+   --retry-delay 1 \
+-  --retry-all-errors \
++  --retry-connrefused \
+   "$FEED_URL" \
+-  -o "$tmp_file"; then
+-  rc=$?
+-  if [[ $rc -eq 22 ]]; then
++  -o "$tmp_file"
++curl_rc=$?
++if [[ $curl_rc -ne 0 ]]; then
++  if [[ $curl_rc -eq 22 ]]; then
+     echo "ERROR: failed to fetch feed (HTTP error)" >&2
+     exit 11
+   fi
+
+2026-02-20T01:35:32.043763Z ERROR codex_core::auth: Failed to refresh token: 401 Unauthorized: {
+  "error": {
+    "message": "Your refresh token has already been used to generate a new access token. Please try signing in again.",
+    "type": "invalid_request_error",
+    "param": null,
+    "code": "refresh_token_reused"
+  }
+}
+2026-02-20T01:35:32.043797Z ERROR codex_core::auth: Failed to refresh token: Your access token could not be refreshed because your refresh token was already used. Please log out and sign in again.
+codex
+実装を完了しました。Issue #1 のスコープ内で最小構成で対応しています。
+
+**変更内容**
+- `scripts/show_latest_headline.sh` を新規追加
+  - 単一ニュースソース（BBC RSS）から最新1件のヘッドラインを取得して表示
+  - `--help` 実装
+  - 失敗時に標準エラー出力 + 非0終了コード
+    - `10`: ネットワーク/タイムアウト
+    - `11`: HTTPエラー
+    - `20`: パース失敗
+    - `21`: ヘッドライン0件
+- `README.md` を新規追加
+  - 前提条件、実行方法、`--help`、終了コード方針を記載
+  - 「最新」の定義（先頭 `item`）を明記
+
+**検証結果**
+- `./scripts/show_latest_headline.sh` → ヘッドライン1行出力、`0`
+- `./scripts/show_latest_headline.sh >/tmp/headline.out && test -s /tmp/headline.out` → 成功
+- `./scripts/show_latest_headline.sh --help` → ヘルプ表示、`0`
+- 異常系確認:
+  - `NEWS_FEED_URL='https://httpbin.org/status/404' ./scripts/show_latest_headline.sh` → エラーメッセージ、`11`
+  - `NEWS_FEED_URL='https://httpbin.org/json' ./scripts/show_latest_headline.sh` → エラーメッセージ、`20`
+- 品質ゲート: `git diff --check` → 問題なし
+
+**実行ログ出力**
+- `/home/runner/work/FlowSmith/FlowSmith/.agent/runs/masaakiayb-muselucid-project-template/20260220T013313Z-issue-1/coder_output_attempt_1.md` に記載済み。
+file update:
+diff --git a/scripts/show_latest_headline.sh b/scripts/show_latest_headline.sh
+index d31e067f4f83488e2cbe1f21fd6463a7d808ef2b..232a683e544d4bed4d191e1e62654b0a7366565a
+--- a/scripts/show_latest_headline.sh
++++ b/scripts/show_latest_headline.sh
+@@ -52,16 +52,17 @@
+ }
+ trap cleanup EXIT
+ 
+-if ! curl -fsSL \
++curl -fsSL \
+   --connect-timeout 5 \
+   --max-time 15 \
+   --retry 2 \
+   --retry-delay 1 \
+-  --retry-all-errors \
++  --retry-connrefused \
+   "$FEED_URL" \
+-  -o "$tmp_file"; then
+-  rc=$?
+-  if [[ $rc -eq 22 ]]; then
++  -o "$tmp_file"
++curl_rc=$?
++if [[ $curl_rc -ne 0 ]]; then
++  if [[ $curl_rc -eq 22 ]]; then
+     echo "ERROR: failed to fetch feed (HTTP error)" >&2
+     exit 11
+   fi
+
+tokens used
+23,916
+

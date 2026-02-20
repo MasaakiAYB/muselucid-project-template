@@ -1,0 +1,486 @@
+# Command
+
+codex exec -s read-only -o /home/runner/work/FlowSmith/FlowSmith/.agent/runs/masaakiayb-muselucid-project-template/20260220T030242Z-issue-4/planner_output.md - < /home/runner/work/FlowSmith/FlowSmith/.agent/runs/masaakiayb-muselucid-project-template/20260220T030242Z-issue-4/planner_prompt.md
+
+# Exit Code
+
+0
+
+# Stdout
+
+## 1. スコープ（対象/対象外）
+
+**対象**
+- `README.md` に以下を実装と一致する形で明記する。  
+  - 前提条件（`bash` `curl` `python3`）
+  - 実行方法（`./scripts/show_latest_headline.sh`）
+  - 検証方法（ローカル実行コマンド）
+  - 失敗時の確認ポイント（終了コードとエラーメッセージの見方）
+- 単一ニュースソース（`NEWS_FEED_URL` デフォルト1件）前提を明示する。
+- ネットワーク障害時の終了コード・メッセージを README 上で確認可能にする。
+
+**対象外**
+- 新機能追加（CLI仕様変更、複数ソース対応など）
+- デプロイ手順の新設
+- 運用監視・CI機能そのものの追加（READMEへの記載のみ）
+
+## 2. 実装手順（番号付き、各手順の完了条件付き）
+
+1. 現行実装との差分確認を行う。  
+完了条件: `scripts/show_latest_headline.sh` の仕様（引数、環境変数、終了コード、エラーメッセージ）を一覧化し、README反映対象が確定している。
+
+2. README の構成を整理し、再現手順を「前提条件→実行→検証→失敗時確認」の順に並べる。  
+完了条件: 初見ユーザーが README の上から順に実行するだけで機能確認できる章立てになっている。
+
+3. 検証手順セクションを追加/更新し、ローカル検証コマンドを明示する。  
+完了条件: 少なくとも1つ以上の検証コマンドが明記され、実行結果の期待値（成功時/失敗時）が記述されている。
+
+4. 失敗時の確認ポイントを追記し、終了コードとの対応を明確化する。  
+完了条件: `10/11/20/21` の意味と代表的な確認方法（URL、依存コマンド、stderr確認）がREADMEに記載されている。
+
+5. 実装とREADMEの整合性チェックを実施する。  
+完了条件: README記載のコマンドを実行して矛盾がなく、IssueのDoD 3項目を満たすことを確認できる。
+
+## 3. リスクと対策
+
+- リスク: README の終了コード説明が実装とずれる。  
+対策: `scripts/show_latest_headline.sh` の `usage` と実際の `exit` 分岐を基準に記載する。
+
+- リスク: ネットワーク依存で検証が不安定。  
+対策: 検証手順に「成功系」と「失敗系（`NEWS_FEED_URL` 上書き）」を分けて記載し、失敗時でも期待される終了コードで判定する。
+
+- リスク: CIが機能検証を自動実行していないため再現性がぶれる。  
+対策: 今回は非ゴールとしてCI追加は行わず、READMEにローカル検証コマンドを明示して再現手順を固定する。
+
+## 4. 検証計画（実行コマンドと期待結果）
+
+1. README内の関連記述確認  
+```bash
+rg -n "latest|headline|ニュース|ヘッドライン" README.md
+```  
+期待結果: 実行方法・検証方法・失敗時説明に関連する行がヒットする。
+
+2. 正常系の出力確認  
+```bash
+./scripts/show_latest_headline.sh >/tmp/headline.out && test -s /tmp/headline.out
+```  
+期待結果: 終了コード `0`、`/tmp/headline.out` が空でない（1行以上の見出し）。
+
+3. READMEファイル存在確認  
+```bash
+test -f README.md
+```  
+期待結果: 終了コード `0`。
+
+4. 失敗系（ネットワーク障害相当）の確認  
+```bash
+NEWS_FEED_URL="https://example.invalid/rss.xml" ./scripts/show_latest_headline.sh >/tmp/headline.out 2>/tmp/headline.err; echo $?
+```  
+期待結果: 終了コード `10`、`/tmp/headline.err` に network/timeout 系エラーメッセージ。
+
+5. 失敗系（解析不能データ）の確認  
+```bash
+NEWS_FEED_URL="https://example.com" ./scripts/show_latest_headline.sh >/tmp/headline.out 2>/tmp/headline.err; echo $?
+```  
+期待結果: 終了コード `20` または `21`、`/tmp/headline.err` に parse/no headline 系メッセージ。
+
+
+# Stderr
+
+2026-02-20T03:02:43.509376Z ERROR codex_core::auth: Failed to refresh token: 401 Unauthorized: {
+  "error": {
+    "message": "Your refresh token has already been used to generate a new access token. Please try signing in again.",
+    "type": "invalid_request_error",
+    "param": null,
+    "code": "refresh_token_reused"
+  }
+}
+2026-02-20T03:02:43.509421Z ERROR codex_core::auth: Failed to refresh token: Your access token could not be refreshed because your refresh token was already used. Please log out and sign in again.
+2026-02-20T03:02:45.383281Z ERROR codex_core::auth: Failed to refresh token: 401 Unauthorized: {
+  "error": {
+    "message": "Your refresh token has already been used to generate a new access token. Please try signing in again.",
+    "type": "invalid_request_error",
+    "param": null,
+    "code": "refresh_token_reused"
+  }
+}
+2026-02-20T03:02:45.383321Z ERROR codex_core::auth: Failed to refresh token: Your access token could not be refreshed because your refresh token was already used. Please log out and sign in again.
+OpenAI Codex v0.104.0 (research preview)
+--------
+workdir: /home/runner/work/FlowSmith/FlowSmith/.agent/workspaces/masaakiayb-muselucid-project-template
+model: gpt-5.3-codex
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: none
+reasoning summaries: auto
+session id: 019c78ff-f138-7f92-a788-b709c41b55f4
+--------
+user
+あなたは Planner エージェントです。
+
+GitHub Issue を、別のエージェントが実行可能な実装計画に落とし込んでください。
+
+Issue メタデータ:
+- プロジェクト: 
+- 対象リポジトリ: MasaakiAYB/muselucid-project-template
+- 対象パス: /home/runner/work/FlowSmith/FlowSmith/.agent/workspaces/masaakiayb-muselucid-project-template
+- 番号: #4
+- タイトル: READMEと検証手順を整備する
+- URL: https://github.com/MasaakiAYB/muselucid-project-template/issues/4
+
+Issue 本文:
+Plan-ID: ISSUE-0003
+Title: READMEと検証手順を整備する
+
+### Goal / Summary
+実装済み機能を誰でも再現できるように、実行方法と検証手順をREADMEに反映する。
+
+### Scope
+- READMEに前提条件、実行方法、検証方法を追記する。
+- 失敗時の確認ポイントを簡潔に記載する。
+- CIまたはローカル検証コマンドを明示する。
+
+### Non-goals
+- 機能追加
+- デプロイ手順の実装
+- 運用監視の導入
+
+### Acceptance Criteria (DoD)
+- READMEの手順だけで機能確認が再現できる。
+- 最低1つの検証コマンドが明記されている。
+- 実装内容とREADME記載に矛盾がない。
+
+### Verify
+- rg -n \"latest|headline|ニュース|ヘッドライン\" README.md
+- ./scripts/show_latest_headline.sh >/tmp/headline.out && test -s /tmp/headline.out
+- test -f README.md
+
+### Constraints
+- MVP は単一のニュースソースのみを対象にする。
+- ニュース取得は公開フィードまたは無料 API を優先し、運用コストを抑える。
+- ネットワーク障害時を考慮し、失敗時の終了コードとメッセージを明示する。
+
+### Risk
+low
+
+### Depends On
+- ISSUE-0002
+
+
+追加フィードバック（PRレビュー/コメント）:
+_追加フィードバックなし_
+
+出力要件:
+1. スコープ（対象/対象外）
+2. 実装手順（番号付き、各手順に完了条件を付与）
+3. リスクと対策
+4. 検証計画（実行コマンドと期待結果）
+
+出力は markdown のみ。
+
+mcp startup: no servers
+2026-02-20T03:02:45.476932Z ERROR codex_core::auth: Failed to refresh token: 401 Unauthorized: {
+  "error": {
+    "message": "Your refresh token has already been used to generate a new access token. Please try signing in again.",
+    "type": "invalid_request_error",
+    "param": null,
+    "code": "refresh_token_reused"
+  }
+}
+2026-02-20T03:02:45.476969Z ERROR codex_core::auth: Failed to refresh token: Your access token could not be refreshed because your refresh token was already used. Please log out and sign in again.
+
+thinking
+**Planning repo inspection steps**
+codex
+Issue #4 の実装計画を、現状のリポジトリ内容に合わせて具体化します。まず `README.md` と `scripts/` を確認して、手順・検証コマンドが実装と矛盾しない計画にします。
+exec
+/bin/bash -lc 'ls -la' in /home/runner/work/FlowSmith/FlowSmith/.agent/workspaces/masaakiayb-muselucid-project-templateexec
+/bin/bash -lc 'rg -n "latest|headline|ニュース|ヘッドライン|show_latest_headline" README.md scripts || true' in /home/runner/work/FlowSmith/FlowSmith/.agent/workspaces/masaakiayb-muselucid-project-templateexec
+/bin/bash -lc 'rg --files' in /home/runner/work/FlowSmith/FlowSmith/.agent/workspaces/masaakiayb-muselucid-project-template succeeded in 51ms:
+total 36
+drwxr-xr-x 7 runner runner 4096 Feb 20 03:02 .
+drwxr-xr-x 3 runner runner 4096 Feb 20 03:02 ..
+drwxr-xr-x 3 runner runner 4096 Feb 20 03:02 .flowsmith
+drwxr-xr-x 7 runner runner 4096 Feb 20 03:02 .git
+drwxr-xr-x 4 runner runner 4096 Feb 20 03:02 .github
+-rw-r--r-- 1 runner runner   45 Feb 20 03:02 .gitignore
+drwxr-xr-x 4 runner runner 4096 Feb 20 03:02 .muselucid
+-rw-r--r-- 1 runner runner 1081 Feb 20 03:02 README.md
+drwxr-xr-x 2 runner runner 4096 Feb 20 03:02 scripts
+ succeeded in 50ms:
+README.md:3:単一ニュースソースから最新ヘッドライン1件を表示する最小CLIです。
+README.md:5:## ニュースソース
+README.md:19:./scripts/show_latest_headline.sh
+README.md:22:標準出力にヘッドラインタイトル1行を表示します。
+README.md:26:./scripts/show_latest_headline.sh --help
+README.md:35:- `21`: ヘッドライン0件
+README.md:41:NEWS_FEED_URL="https://example.invalid/rss.xml" ./scripts/show_latest_headline.sh
+scripts/show_latest_headline.sh:8:Usage: ./scripts/show_latest_headline.sh [--help]
+scripts/show_latest_headline.sh:10:Fetch and print the latest headline title from a single RSS feed.
+scripts/show_latest_headline.sh:24:  21  No headline found in feed
+scripts/show_latest_headline.sh:73:if ! headline="$(python3 - "$tmp_file" <<'PY'
+scripts/show_latest_headline.sh:102:    print("ERROR: no headline found in feed", file=sys.stderr)
+scripts/show_latest_headline.sh:115:printf '%s\n' "$headline"
+ succeeded in 50ms:
+README.md
+scripts/show_latest_headline.sh
+2026-02-20T03:02:52.679039Z ERROR codex_core::auth: Failed to refresh token: 401 Unauthorized: {
+  "error": {
+    "message": "Your refresh token has already been used to generate a new access token. Please try signing in again.",
+    "type": "invalid_request_error",
+    "param": null,
+    "code": "refresh_token_reused"
+  }
+}
+2026-02-20T03:02:52.679076Z ERROR codex_core::auth: Failed to refresh token: Your access token could not be refreshed because your refresh token was already used. Please log out and sign in again.
+
+thinking
+**Inspecting README for coverage**
+codex
+主要ファイルは `README.md` と `scripts/show_latest_headline.sh` のみなので、この2つを読んで差分前提の実装計画に落とし込みます。
+exec
+/bin/bash -lc 'nl -ba README.md' in /home/runner/work/FlowSmith/FlowSmith/.agent/workspaces/masaakiayb-muselucid-project-templateexec
+/bin/bash -lc 'nl -ba scripts/show_latest_headline.sh' in /home/runner/work/FlowSmith/FlowSmith/.agent/workspaces/masaakiayb-muselucid-project-template succeeded in 50ms:
+     1	# muselucid-project-template
+     2	
+     3	単一ニュースソースから最新ヘッドライン1件を表示する最小CLIです。
+     4	
+     5	## ニュースソース
+     6	- URL: `https://feeds.bbci.co.uk/news/rss.xml`
+     7	- 形式: RSS (XML)
+     8	- 選定理由: APIキー不要、無料で取得可能
+     9	
+    10	最新の定義は「フィード先頭の最初の `item` の `title`」です。
+    11	
+    12	## 前提条件
+    13	- `bash`
+    14	- `curl`
+    15	- `python3`（標準ライブラリの XML パーサを使用）
+    16	
+    17	## 実行方法
+    18	```bash
+    19	./scripts/show_latest_headline.sh
+    20	```
+ succeeded in 51ms:
+     1	#!/usr/bin/env bash
+     2	set -u
+     3	
+     4	FEED_URL="${NEWS_FEED_URL:-https://feeds.bbci.co.uk/news/rss.xml}"
+     5	
+     6	usage() {
+     7	  cat <<USAGE
+     8	Usage: ./scripts/show_latest_headline.sh [--help]
+     9	
+    10	Fetch and print the latest headline title from a single RSS feed.
+    11	
+    12	Options:
+    13	  --help    Show this help and exit
+    14	
+    15	Environment:
+    16	  NEWS_FEED_URL  Override RSS feed URL (default: ${FEED_URL})
+    17	
+    18	Exit codes:
+    19	  0   Success
+    20	  2   Invalid arguments
+2026-02-20T03:02:55.758315Z ERROR codex_core::auth: Failed to refresh token: 401 Unauthorized: {
+  "error": {
+    "message": "Your refresh token has already been used to generate a new access token. Please try signing in again.",
+    "type": "invalid_request_error",
+    "param": null,
+    "code": "refresh_token_reused"
+  }
+}
+2026-02-20T03:02:55.758349Z ERROR codex_core::auth: Failed to refresh token: Your access token could not be refreshed because your refresh token was already used. Please log out and sign in again.
+
+thinking
+**Planning verification and CI integration**
+codex
+現状の README は基本情報はありますが、Issue の DoDにある「検証手順の再現性」と「CIまたはローカル検証コマンドの明示」を強化する余地があります。最後に、他エージェントがそのまま実行できる粒度で計画をまとめます。
+exec
+/bin/bash -lc 'rg --files .github && rg -n "headline|readme|test|verify|workflow|ci" .github -S || true' in /home/runner/work/FlowSmith/FlowSmith/.agent/workspaces/masaakiayb-muselucid-project-template succeeded in 51ms:
+.github/workflows/relay.yml
+.github/workflows/trigger-flowsmith-on-issue.yml
+.github/workflows/trigger-flowsmith-on-pr-feedback.yml
+.github/scripts/relay_sync.py
+.github/workflows/relay.yml:8:      - ".muselucid/plan/**"
+.github/workflows/relay.yml:9:      - ".muselucid/templates/issue.md"
+.github/workflows/relay.yml:14:  workflow_dispatch:
+.github/workflows/relay.yml:22:    runs-on: ubuntu-latest
+.github/workflows/relay.yml:32:      - name: Install dependencies
+.github/workflows/relay.yml:39:          # Use PAT if available so issue events can trigger downstream workflows.
+.github/workflows/trigger-flowsmith-on-issue.yml:13:    runs-on: ubuntu-latest
+.github/workflows/trigger-flowsmith-on-pr-feedback.yml:29:    runs-on: ubuntu-latest
+.github/workflows/trigger-flowsmith-on-pr-feedback.yml:34:      FEEDBACK_ALLOWED_ASSOCIATIONS: ${{ vars.FLOWSMITH_FEEDBACK_ALLOWED_ASSOCIATIONS || 'OWNER,MEMBER,COLLABORATOR' }}
+.github/workflows/trigger-flowsmith-on-pr-feedback.yml:55:          author_association=""
+.github/workflows/trigger-flowsmith-on-pr-feedback.yml:67:            author_association="$(jq -r '.review.author_association // ""' "$GITHUB_EVENT_PATH" | tr '[:lower:]' '[:upper:]')"
+.github/workflows/trigger-flowsmith-on-pr-feedback.yml:78:            author_association="$(jq -r '.comment.author_association // ""' "$GITHUB_EVENT_PATH" | tr '[:lower:]' '[:upper:]')"
+.github/workflows/trigger-flowsmith-on-pr-feedback.yml:93:            author_association="$(jq -r '.comment.author_association // ""' "$GITHUB_EVENT_PATH" | tr '[:lower:]' '[:upper:]')"
+.github/workflows/trigger-flowsmith-on-pr-feedback.yml:101:          IFS=',' read -r -a allowed_assoc <<< "${FEEDBACK_ALLOWED_ASSOCIATIONS:-OWNER,MEMBER,COLLABORATOR}"
+.github/workflows/trigger-flowsmith-on-pr-feedback.yml:104:            if [ -n "$normalized" ] && [ "$normalized" = "$author_association" ]; then
+.github/workflows/trigger-flowsmith-on-pr-feedback.yml:110:            echo "許可されていない author_association のためスキップします: actor=${source_actor:-unknown} association=${author_association:-unknown}"
+2026-02-20T03:03:00.635834Z ERROR codex_core::auth: Failed to refresh token: 401 Unauthorized: {
+  "error": {
+    "message": "Your refresh token has already been used to generate a new access token. Please try signing in again.",
+    "type": "invalid_request_error",
+    "param": null,
+    "code": "refresh_token_reused"
+  }
+}
+2026-02-20T03:03:00.635866Z ERROR codex_core::auth: Failed to refresh token: Your access token could not be refreshed because your refresh token was already used. Please log out and sign in again.
+
+thinking
+**Inspecting plan issue file**
+codex
+`.github` には本件の機能検証を回す CI は見当たらないため、計画では「ローカル検証コマンドを README に明示」を主軸にします。Issue 定義ファイルも確認して、記載ゆれがないようにします。
+exec
+/bin/bash -lc 'rg --files .muselucid/plan' in /home/runner/work/FlowSmith/FlowSmith/.agent/workspaces/masaakiayb-muselucid-project-templateexec
+/bin/bash -lc 'rg -n "ISSUE-0002|ISSUE-0003|README|headline|verify|show_latest_headline" .muselucid/plan -S' in /home/runner/work/FlowSmith/FlowSmith/.agent/workspaces/masaakiayb-muselucid-project-template succeeded in 51ms:
+.muselucid/plan/vision.yaml
+.muselucid/plan/issues/ISSUE-0002.yaml
+.muselucid/plan/issues/ISSUE-0003.yaml
+.muselucid/plan/issues/ISSUE-0001.yaml
+.muselucid/plan/roadmap.yaml
+ succeeded in 51ms:
+.muselucid/plan/issues/ISSUE-0002.yaml:1:id: ISSUE-0002
+.muselucid/plan/issues/ISSUE-0002.yaml:16:verify:
+.muselucid/plan/issues/ISSUE-0002.yaml:17:  - ./scripts/show_latest_headline.sh
+.muselucid/plan/issues/ISSUE-0002.yaml:18:  - ./scripts/show_latest_headline.sh >/tmp/headline.out && test -s /tmp/headline.out
+.muselucid/plan/issues/ISSUE-0002.yaml:19:  - ./scripts/show_latest_headline.sh 2>/tmp/headline.err || test -s /tmp/headline.err
+.muselucid/plan/issues/ISSUE-0003.yaml:1:id: ISSUE-0003
+.muselucid/plan/issues/ISSUE-0003.yaml:2:title: READMEと検証手順を整備する
+.muselucid/plan/issues/ISSUE-0003.yaml:3:summary: 実装済み機能を誰でも再現できるように、実行方法と検証手順をREADMEに反映する。
+.muselucid/plan/issues/ISSUE-0003.yaml:5:  - READMEに前提条件、実行方法、検証方法を追記する。
+.muselucid/plan/issues/ISSUE-0003.yaml:13:  - READMEの手順だけで機能確認が再現できる。
+.muselucid/plan/issues/ISSUE-0003.yaml:15:  - 実装内容とREADME記載に矛盾がない。
+.muselucid/plan/issues/ISSUE-0003.yaml:16:verify:
+.muselucid/plan/issues/ISSUE-0003.yaml:17:  - rg -n \"latest|headline|ニュース|ヘッドライン\" README.md
+.muselucid/plan/issues/ISSUE-0003.yaml:18:  - ./scripts/show_latest_headline.sh >/tmp/headline.out && test -s /tmp/headline.out
+.muselucid/plan/issues/ISSUE-0003.yaml:19:  - test -f README.md
+.muselucid/plan/issues/ISSUE-0003.yaml:25:  - ISSUE-0002
+.muselucid/plan/issues/ISSUE-0001.yaml:10:  - README整備や運用ドキュメントの詳細化
+.muselucid/plan/issues/ISSUE-0001.yaml:16:verify:
+.muselucid/plan/issues/ISSUE-0001.yaml:17:  - ./scripts/show_latest_headline.sh --raw
+.muselucid/plan/issues/ISSUE-0001.yaml:18:  - ./scripts/show_latest_headline.sh --raw >/tmp/headline.raw && test -s /tmp/headline.raw
+2026-02-20T03:03:04.712340Z ERROR codex_core::auth: Failed to refresh token: 401 Unauthorized: {
+  "error": {
+    "message": "Your refresh token has already been used to generate a new access token. Please try signing in again.",
+    "type": "invalid_request_error",
+    "param": null,
+    "code": "refresh_token_reused"
+  }
+}
+2026-02-20T03:03:04.712374Z ERROR codex_core::auth: Failed to refresh token: Your access token could not be refreshed because your refresh token was already used. Please log out and sign in again.
+exec
+/bin/bash -lc 'nl -ba .muselucid/plan/issues/ISSUE-0002.yaml && nl -ba .muselucid/plan/issues/ISSUE-0003.yaml' in /home/runner/work/FlowSmith/FlowSmith/.agent/workspaces/masaakiayb-muselucid-project-template succeeded in 50ms:
+     1	id: ISSUE-0002
+     2	title: 取得したヘッドラインをCLIで表示する
+     3	summary: ISSUE-0001で取得したデータを使い、ユーザー向けの標準出力フォーマットを実装する。
+     4	scope:
+     5	  - 最新ヘッドライン1件を見やすい形式で標準出力に表示する。
+     6	  - 出力失敗時のエラーメッセージを明確にする。
+     7	  - 将来の拡張に備えて表示処理を関数分離する。
+     8	non_goals:
+     9	  - 複数件表示
+    10	  - カラー表示やリッチフォーマット
+    11	  - Web UI 表示
+    12	acceptance_criteria:
+    13	  - コマンド実行時に最新ヘッドライン1件が標準出力に表示される。
+    14	  - 表示処理がISSUE-0001の取得処理に接続されている。
+    15	  - 異常系で非0終了コードが返る。
+    16	verify:
+    17	  - ./scripts/show_latest_headline.sh
+    18	  - ./scripts/show_latest_headline.sh >/tmp/headline.out && test -s /tmp/headline.out
+    19	  - ./scripts/show_latest_headline.sh 2>/tmp/headline.err || test -s /tmp/headline.err
+    20	risk: low
+2026-02-20T03:03:07.507162Z ERROR codex_core::auth: Failed to refresh token: 401 Unauthorized: {
+  "error": {
+    "message": "Your refresh token has already been used to generate a new access token. Please try signing in again.",
+    "type": "invalid_request_error",
+    "param": null,
+    "code": "refresh_token_reused"
+  }
+}
+2026-02-20T03:03:07.507198Z ERROR codex_core::auth: Failed to refresh token: Your access token could not be refreshed because your refresh token was already used. Please log out and sign in again.
+
+thinking
+**Creating detailed implementation steps in Japanese markdown**
+codex
+## 1. スコープ（対象/対象外）
+
+**対象**
+- `README.md` に以下を実装と一致する形で明記する。  
+  - 前提条件（`bash` `curl` `python3`）
+  - 実行方法（`./scripts/show_latest_headline.sh`）
+  - 検証方法（ローカル実行コマンド）
+  - 失敗時の確認ポイント（終了コードとエラーメッセージの見方）
+- 単一ニュースソース（`NEWS_FEED_URL` デフォルト1件）前提を明示する。
+- ネットワーク障害時の終了コード・メッセージを README 上で確認可能にする。
+
+**対象外**
+- 新機能追加（CLI仕様変更、複数ソース対応など）
+- デプロイ手順の新設
+- 運用監視・CI機能そのものの追加（READMEへの記載のみ）
+
+## 2. 実装手順（番号付き、各手順の完了条件付き）
+
+1. 現行実装との差分確認を行う。  
+完了条件: `scripts/show_latest_headline.sh` の仕様（引数、環境変数、終了コード、エラーメッセージ）を一覧化し、README反映対象が確定している。
+
+2. README の構成を整理し、再現手順を「前提条件→実行→検証→失敗時確認」の順に並べる。  
+完了条件: 初見ユーザーが README の上から順に実行するだけで機能確認できる章立てになっている。
+
+3. 検証手順セクションを追加/更新し、ローカル検証コマンドを明示する。  
+完了条件: 少なくとも1つ以上の検証コマンドが明記され、実行結果の期待値（成功時/失敗時）が記述されている。
+
+4. 失敗時の確認ポイントを追記し、終了コードとの対応を明確化する。  
+完了条件: `10/11/20/21` の意味と代表的な確認方法（URL、依存コマンド、stderr確認）がREADMEに記載されている。
+
+5. 実装とREADMEの整合性チェックを実施する。  
+完了条件: README記載のコマンドを実行して矛盾がなく、IssueのDoD 3項目を満たすことを確認できる。
+
+## 3. リスクと対策
+
+- リスク: README の終了コード説明が実装とずれる。  
+対策: `scripts/show_latest_headline.sh` の `usage` と実際の `exit` 分岐を基準に記載する。
+
+- リスク: ネットワーク依存で検証が不安定。  
+対策: 検証手順に「成功系」と「失敗系（`NEWS_FEED_URL` 上書き）」を分けて記載し、失敗時でも期待される終了コードで判定する。
+
+- リスク: CIが機能検証を自動実行していないため再現性がぶれる。  
+対策: 今回は非ゴールとしてCI追加は行わず、READMEにローカル検証コマンドを明示して再現手順を固定する。
+
+## 4. 検証計画（実行コマンドと期待結果）
+
+1. README内の関連記述確認  
+```bash
+rg -n "latest|headline|ニュース|ヘッドライン" README.md
+```  
+期待結果: 実行方法・検証方法・失敗時説明に関連する行がヒットする。
+
+2. 正常系の出力確認  
+```bash
+./scripts/show_latest_headline.sh >/tmp/headline.out && test -s /tmp/headline.out
+```  
+期待結果: 終了コード `0`、`/tmp/headline.out` が空でない（1行以上の見出し）。
+
+3. READMEファイル存在確認  
+```bash
+test -f README.md
+```  
+期待結果: 終了コード `0`。
+
+4. 失敗系（ネットワーク障害相当）の確認  
+```bash
+NEWS_FEED_URL="https://example.invalid/rss.xml" ./scripts/show_latest_headline.sh >/tmp/headline.out 2>/tmp/headline.err; echo $?
+```  
+期待結果: 終了コード `10`、`/tmp/headline.err` に network/timeout 系エラーメッセージ。
+
+5. 失敗系（解析不能データ）の確認  
+```bash
+NEWS_FEED_URL="https://example.com" ./scripts/show_latest_headline.sh >/tmp/headline.out 2>/tmp/headline.err; echo $?
+```  
+期待結果: 終了コード `20` または `21`、`/tmp/headline.err` に parse/no headline 系メッセージ。
+tokens used
+9,438
+

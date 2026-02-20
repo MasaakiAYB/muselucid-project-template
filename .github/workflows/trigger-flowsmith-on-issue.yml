@@ -11,17 +11,61 @@ permissions:
 
 jobs:
   dispatch:
-    if: >-
-      ${{
-        (github.event.action == 'opened' && contains(github.event.issue.labels.*.name, 'agent-ready')) ||
-        (github.event.action == 'labeled' && github.event.label.name == 'agent-ready')
-      }}
     runs-on: ubuntu-latest
     env:
       FLOW_SMITH_REPO: ${{ vars.FLOW_SMITH_REPO || 'MasaakiAYB/FlowSmith' }}
       FLOW_SMITH_PROJECT_ID: ${{ vars.FLOW_SMITH_PROJECT_ID || '' }}
+      FLOWSMITH_RUN_GATE_MODE: ${{ vars.FLOWSMITH_RUN_GATE_MODE || 'auto' }}
     steps:
+      - name: Evaluate trigger gate
+        id: gate
+        run: |
+          set -euo pipefail
+
+          mode="${FLOWSMITH_RUN_GATE_MODE}"
+          action="$(jq -r '.action // ""' "$GITHUB_EVENT_PATH")"
+          labeled_name="$(jq -r '.label.name // ""' "$GITHUB_EVENT_PATH")"
+          issue_labels="$(jq -c '[.issue.labels[].name] // []' "$GITHUB_EVENT_PATH")"
+
+          has_task="false"
+          has_ready="false"
+          if echo "$issue_labels" | jq -e 'index("agent-task") != null' >/dev/null; then
+            has_task="true"
+          fi
+          if echo "$issue_labels" | jq -e 'index("agent-ready") != null' >/dev/null; then
+            has_ready="true"
+          fi
+
+          should_dispatch="false"
+          reason="gate-not-satisfied"
+
+          if [ "$mode" = "manual" ]; then
+            if [ "$action" = "labeled" ] && [ "$labeled_name" = "agent-run" ] && [ "$has_task" = "true" ] && [ "$has_ready" = "true" ]; then
+              should_dispatch="true"
+              reason="manual:agent-run-labeled"
+            fi
+          else
+            if [ "$action" = "opened" ] && [ "$has_task" = "true" ] && [ "$has_ready" = "true" ]; then
+              should_dispatch="true"
+              reason="auto:opened-with-agent-ready"
+            elif [ "$action" = "labeled" ] && [ "$labeled_name" = "agent-ready" ] && [ "$has_task" = "true" ]; then
+              should_dispatch="true"
+              reason="auto:agent-ready-labeled"
+            fi
+          fi
+
+          {
+            echo "mode=${mode}"
+            echo "action=${action}"
+            echo "labeled_name=${labeled_name}"
+            echo "has_task=${has_task}"
+            echo "has_ready=${has_ready}"
+            echo "should_dispatch=${should_dispatch}"
+            echo "reason=${reason}"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Validate dispatch token
+        if: ${{ steps.gate.outputs.should_dispatch == 'true' }}
         run: |
           if [ -z "${{ secrets.FLOW_SMITH_DISPATCH_TOKEN }}" ]; then
             echo "Secret FLOW_SMITH_DISPATCH_TOKEN is required." >&2
@@ -29,6 +73,7 @@ jobs:
           fi
 
       - name: Send repository_dispatch to FlowSmith
+        if: ${{ steps.gate.outputs.should_dispatch == 'true' }}
         env:
           FLOW_SMITH_DISPATCH_TOKEN: ${{ secrets.FLOW_SMITH_DISPATCH_TOKEN }}
           FLOW_SMITH_DISPATCH_SECRET: ${{ secrets.FLOW_SMITH_DISPATCH_SECRET }}
@@ -67,10 +112,16 @@ jobs:
             -d "${payload}"
 
       - name: Summary
+        if: ${{ always() }}
         run: |
           {
-            echo "## FlowSmith Dispatch Sent"
+            echo "## FlowSmith Issue Trigger Result"
             echo ""
+            echo "- gate_mode: \`${{ steps.gate.outputs.mode }}\`"
+            echo "- gate_reason: \`${{ steps.gate.outputs.reason }}\`"
+            echo "- should_dispatch: \`${{ steps.gate.outputs.should_dispatch }}\`"
+            echo "- issue_has_agent_task: \`${{ steps.gate.outputs.has_task }}\`"
+            echo "- issue_has_agent_ready: \`${{ steps.gate.outputs.has_ready }}\`"
             echo "- flow_smith_repo: \`${FLOW_SMITH_REPO}\`"
             echo "- flow_smith_project_id: \`${FLOW_SMITH_PROJECT_ID:-未設定}\`"
             echo "- source_repo: \`${{ github.repository }}\`"

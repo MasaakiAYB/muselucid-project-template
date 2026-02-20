@@ -1,0 +1,4 @@
+- Codex要約を生成しました（2層構成）。
+- max_chars_per_item: `240`
+- max_attempts: `5`
+- max_points: `3`

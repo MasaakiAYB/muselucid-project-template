@@ -30,7 +30,7 @@ jobs:
     env:
       FLOW_SMITH_REPO: ${{ vars.FLOW_SMITH_REPO || 'MasaakiAYB/FlowSmith' }}
       FLOW_SMITH_PROJECT_ID: ${{ vars.FLOW_SMITH_PROJECT_ID || '' }}
-      FEEDBACK_TRIGGER_REGEX: ${{ vars.FLOWSMITH_FEEDBACK_TRIGGER_REGEX || '(^|[[:space:]])/(agent|flowsmith)[[:space:]]+(run|fix)([[:space:]]|$)' }}
+      FEEDBACK_TRIGGER_REGEX: '(^|[[:space:]])/agent[[:space:]]+run([[:space:]]|$)'
       FEEDBACK_ALLOWED_ASSOCIATIONS: ${{ vars.FLOWSMITH_FEEDBACK_ALLOWED_ASSOCIATIONS || 'OWNER,MEMBER,COLLABORATOR' }}
     steps:
       - name: Validate dispatch token
@@ -119,7 +119,7 @@ jobs:
 
           # remove command tokens from feedback body before forwarding
           feedback_text="$(printf '%s\n' "$feedback_text" \
-            | sed -E "s@(^|[[:space:]])/(agent|flowsmith)[[:space:]]+(run|fix)([[:space:]]|$)@ @Ig" \
+            | sed -E "s@(^|[[:space:]])/agent[[:space:]]+run([[:space:]]|$)@ @Ig" \
             | sed -E 's/[[:space:]]+$//')"
 
           pr_json="$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${pr_number}")"
@@ -153,6 +153,7 @@ jobs:
         env:
           FLOW_SMITH_DISPATCH_TOKEN: ${{ secrets.FLOW_SMITH_DISPATCH_TOKEN }}
           FLOW_SMITH_DISPATCH_SECRET: ${{ secrets.FLOW_SMITH_DISPATCH_SECRET || '' }}
+          FLOW_SMITH_CODEX_AUTH_JSON_B64: ${{ secrets.FLOW_SMITH_CODEX_AUTH_JSON_B64 || '' }}
         run: |
           set -euo pipefail
 
@@ -167,6 +168,7 @@ jobs:
             --arg branch_name "${{ steps.ctx.outputs.head_ref }}" \
             --arg base_branch "${{ steps.ctx.outputs.base_ref }}" \
             --arg dispatch_secret "${FLOW_SMITH_DISPATCH_SECRET}" \
+            --arg codex_auth_json_b64 "${FLOW_SMITH_CODEX_AUTH_JSON_B64:-}" \
             --arg request_id "pr-feedback-${{ github.run_id }}-${{ github.run_attempt }}" \
             --arg trigger_reason "${{ steps.ctx.outputs.trigger_reason }}" \
             --arg feedback_text "${{ steps.ctx.outputs.feedback_text }}" \
@@ -188,7 +190,7 @@ jobs:
                   source_repository: $source_repository,
                   request_id: $request_id,
                   dispatch_secret: $dispatch_secret
-                } + (if $project_id != "" then {project_id: $project_id} else {} end)
+                } + (if $project_id != "" then {project_id: $project_id} else {} end) + (if $codex_auth_json_b64 != "" then {codex_auth_json_b64: $codex_auth_json_b64} else {} end)
               )
             }'
           )"

@@ -364,8 +364,15 @@ def sync_issues(
 
         if existing:
             number = int(existing["number"])
+            state = str(existing.get("state", "")).lower()
+            reopened = False
+            if state == "closed":
+                api_request("PATCH", api_base, f"/repos/{repo}/issues/{number}", token, {"state": "open"})
+                reopened = True
+
             api_request("PATCH", api_base, f"/repos/{repo}/issues/{number}", token, payload)
-            msg = f"Updated issue #{number} for Plan-ID {spec.issue_id}"
+            msg_prefix = "Reopened and updated" if reopened else "Updated"
+            msg = f"{msg_prefix} issue #{number} for Plan-ID {spec.issue_id}"
             if unresolved:
                 msg += f" (blocked by: {', '.join(unresolved)})"
             print(msg)

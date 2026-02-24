@@ -4,6 +4,7 @@ on:
   issues:
     types:
       - labeled
+      - reopened
 
 permissions:
   contents: read
@@ -47,6 +48,9 @@ jobs:
             if [ "$action" = "labeled" ] && [ "$labeled_name" = "agent-ready" ] && [ "$has_task" = "true" ]; then
               should_dispatch="true"
               reason="auto:agent-ready-labeled"
+            elif [ "$action" = "reopened" ] && [ "$has_task" = "true" ] && [ "$has_ready" = "true" ]; then
+              should_dispatch="true"
+              reason="auto:issue-reopened"
             fi
           fi
 

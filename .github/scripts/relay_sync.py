@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import time
 from dataclasses import dataclass
 from glob import glob
@@ -85,6 +86,7 @@ API_MAX_RETRIES = _env_int("RELAY_API_MAX_RETRIES", API_MAX_RETRIES_DEFAULT)
 API_BACKOFF_SECONDS = _env_float("RELAY_API_BACKOFF_SECONDS", API_BACKOFF_SECONDS_DEFAULT)
 API_MAX_BACKOFF_SECONDS = _env_float("RELAY_API_MAX_BACKOFF_SECONDS", API_MAX_BACKOFF_SECONDS_DEFAULT)
 _LAST_REQUEST_AT = {"default": 0.0, "search": 0.0}
+PLAN_ID_PATTERN = re.compile(r"(?im)^Plan-ID:\s*([^\s]+)\s*$")
 
 
 class RelayError(Exception):
@@ -421,6 +423,46 @@ def write_summary(lines: list[str]) -> None:
             handle.write(f"- {line}\n")
 
 
+def extract_plan_id_from_body(body: str) -> str:
+    match = PLAN_ID_PATTERN.search(body or "")
+    if not match:
+        return ""
+    return match.group(1).strip()
+
+
+def load_closed_issue_trigger() -> tuple[int | None, str]:
+    if os.getenv("GITHUB_EVENT_NAME", "") != "issues":
+        return None, ""
+
+    event_path = os.getenv("GITHUB_EVENT_PATH", "").strip()
+    if not event_path:
+        return None, ""
+
+    try:
+        with open(event_path, "r", encoding="utf-8") as handle:
+            payload = json.load(handle) or {}
+    except (OSError, json.JSONDecodeError):
+        return None, ""
+
+    if str(payload.get("action", "")) != "closed":
+        return None, ""
+
+    issue_data = payload.get("issue")
+    issue = issue_data if isinstance(issue_data, dict) else {}
+
+    issue_number: int | None = None
+    raw_number = issue.get("number")
+    if isinstance(raw_number, int):
+        issue_number = raw_number
+    else:
+        number_text = str(raw_number or "").strip()
+        if number_text.isdigit():
+            issue_number = int(number_text)
+
+    plan_id = extract_plan_id_from_body(str(issue.get("body", "")))
+    return issue_number, plan_id
+
+
 def sync_issues(
     repo: str,
     token: str,
@@ -429,6 +471,8 @@ def sync_issues(
     template: str,
     constraints: list[str],
     dry_run: bool,
+    closed_trigger_issue_number: int | None = None,
+    closed_trigger_plan_id: str = "",
 ) -> list[str]:
     result_lines: list[str] = []
     for index, spec in enumerate(issue_specs):
@@ -467,18 +511,33 @@ def sync_issues(
         if existing:
             number = int(existing["number"])
             state = str(existing.get("state", "")).lower()
-            reopened = False
-            if state == "closed":
-                api_request("PATCH", api_base, f"/repos/{repo}/issues/{number}", token, {"state": "open"})
-                reopened = True
+            skip_reopen = state == "closed" and (
+                (closed_trigger_issue_number is not None and number == closed_trigger_issue_number)
+                or (closed_trigger_plan_id and spec.issue_id == closed_trigger_plan_id)
+            )
 
-            api_request("PATCH", api_base, f"/repos/{repo}/issues/{number}", token, payload)
-            msg_prefix = "Reopened and updated" if reopened else "Updated"
-            msg = f"{msg_prefix} issue #{number} for Plan-ID {spec.issue_id}"
-            if unresolved:
-                msg += f" (blocked by: {', '.join(unresolved)})"
-            print(msg)
-            result_lines.append(msg)
+            if skip_reopen:
+                msg = (
+                    f"Kept closed issue #{number} for Plan-ID {spec.issue_id} "
+                    "(skip reopen on issues.closed trigger)"
+                )
+                if unresolved:
+                    msg += f" (blocked by: {', '.join(unresolved)})"
+                print(msg)
+                result_lines.append(msg)
+            else:
+                reopened = False
+                if state == "closed":
+                    api_request("PATCH", api_base, f"/repos/{repo}/issues/{number}", token, {"state": "open"})
+                    reopened = True
+
+                api_request("PATCH", api_base, f"/repos/{repo}/issues/{number}", token, payload)
+                msg_prefix = "Reopened and updated" if reopened else "Updated"
+                msg = f"{msg_prefix} issue #{number} for Plan-ID {spec.issue_id}"
+                if unresolved:
+                    msg += f" (blocked by: {', '.join(unresolved)})"
+                print(msg)
+                result_lines.append(msg)
         else:
             created = api_request("POST", api_base, f"/repos/{repo}/issues", token, payload)
             number = int(created["number"])
@@ -511,6 +570,7 @@ def main() -> int:
 
     constraints = load_constraints(plan_dir)
     template = load_template(template_path)
+    closed_trigger_issue_number, closed_trigger_plan_id = load_closed_issue_trigger()
 
     if args.dry_run:
         lines = sync_issues(
@@ -521,6 +581,8 @@ def main() -> int:
             template=template,
             constraints=constraints,
             dry_run=True,
+            closed_trigger_issue_number=closed_trigger_issue_number,
+            closed_trigger_plan_id=closed_trigger_plan_id,
         )
         write_summary(lines)
         return 0
@@ -538,6 +600,8 @@ def main() -> int:
         template=template,
         constraints=constraints,
         dry_run=False,
+        closed_trigger_issue_number=closed_trigger_issue_number,
+        closed_trigger_plan_id=closed_trigger_plan_id,
     )
     write_summary(lines)
     return 0

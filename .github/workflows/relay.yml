@@ -5,7 +5,9 @@ on:
     branches:
       - main
     paths:
-      - ".muselucid/plan/**"
+      - ".muselucid/plan/vision.yaml"
+      - ".muselucid/plan/roadmap.yaml"
+      - ".muselucid/plan/issues/**"
       - ".muselucid/templates/issue.md"
   issues:
     types:
@@ -14,7 +16,7 @@ on:
 
 concurrency:
   group: relay-${{ github.repository }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -22,6 +24,7 @@ permissions:
 
 jobs:
   relay:
+    if: ${{ github.event_name != 'issues' || contains(github.event.issue.labels.*.name, 'agent-task') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

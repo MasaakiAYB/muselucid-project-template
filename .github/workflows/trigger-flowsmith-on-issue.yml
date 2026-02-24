@@ -58,6 +58,11 @@ jobs:
             fi
           fi
 
+          event_fingerprint="$(jq -c \
+            '{action:(.action // ""), issue_number:(.issue.number // 0), issue_updated_at:(.issue.updated_at // ""), label:(.label.name // ""), sender:(.sender.login // ""), labels:([.issue.labels[].name] // [])}' \
+            "$GITHUB_EVENT_PATH" | sha256sum | awk '{print $1}')"
+          request_id="issue-event-${event_fingerprint}"
+
           {
             echo "mode=${mode}"
             echo "action=${action}"
@@ -66,6 +71,7 @@ jobs:
             echo "has_ready=${has_ready}"
             echo "should_dispatch=${should_dispatch}"
             echo "reason=${reason}"
+            echo "request_id=${request_id}"
           } >> "$GITHUB_OUTPUT"
 
       - name: Validate dispatch token
@@ -94,7 +100,7 @@ jobs:
             --arg base_branch "${{ github.event.repository.default_branch }}" \
             --arg project_id "${FLOW_SMITH_PROJECT_ID}" \
             --arg source_repository "${{ github.repository }}" \
-            --arg request_id "issue-${{ github.event.issue.number }}-run-${{ github.run_id }}" \
+            --arg request_id "${{ steps.gate.outputs.request_id }}" \
             --arg dispatch_secret "${FLOW_SMITH_DISPATCH_SECRET:-}" \
             --arg codex_auth_json_b64 "${FLOW_SMITH_CODEX_AUTH_JSON_B64:-}" \
             '{
@@ -132,4 +138,5 @@ jobs:
             echo "- flow_smith_project_id: \`${FLOW_SMITH_PROJECT_ID:-未設定}\`"
             echo "- source_repo: \`${{ github.repository }}\`"
             echo "- issue_number: \`${{ github.event.issue.number }}\`"
+            echo "- request_id: \`${{ steps.gate.outputs.request_id }}\`"
           } >> "$GITHUB_STEP_SUMMARY"

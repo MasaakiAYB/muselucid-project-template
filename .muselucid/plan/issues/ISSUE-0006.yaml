@@ -1,0 +1,18 @@
+id: ISSUE-0006
+title: 総合検証とリリース判定
+summary: 段階実装した機能を統合し、成功指標と検証手順を満たすことを確認する。
+scope:
+  - 結合テストの実施
+  - 受け入れ観点の確認
+  - 当日処理完了率95%以上
+non_goals: []
+acceptance_criteria:
+  - 当日処理完了率95%以上
+verify:
+  - 一覧画面でステータス別件数を確認できること
+risk: medium
+labels:
+  - agent-task
+  - agent-ready
+depends_on:
+  - ISSUE-0005

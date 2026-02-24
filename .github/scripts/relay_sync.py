@@ -52,6 +52,39 @@ LABEL_STYLES = {
 }
 DEFAULT_LABEL_STYLE = {"color": "cfd3d7", "description": "Managed by MuseLucid Relay"}
 ISSUE_SYNC_SLEEP_SECONDS = 10
+API_MIN_INTERVAL_SECONDS_DEFAULT = 1.0
+SEARCH_MIN_INTERVAL_SECONDS_DEFAULT = 2.2
+API_MAX_RETRIES_DEFAULT = 5
+API_BACKOFF_SECONDS_DEFAULT = 2.0
+API_MAX_BACKOFF_SECONDS_DEFAULT = 60.0
+
+
+def _env_float(name: str, default: float) -> float:
+    raw = os.getenv(name)
+    if raw is None or raw.strip() == "":
+        return default
+    try:
+        return float(raw)
+    except ValueError:
+        return default
+
+
+def _env_int(name: str, default: int) -> int:
+    raw = os.getenv(name)
+    if raw is None or raw.strip() == "":
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        return default
+
+
+API_MIN_INTERVAL_SECONDS = _env_float("RELAY_API_MIN_INTERVAL_SECONDS", API_MIN_INTERVAL_SECONDS_DEFAULT)
+SEARCH_MIN_INTERVAL_SECONDS = _env_float("RELAY_SEARCH_MIN_INTERVAL_SECONDS", SEARCH_MIN_INTERVAL_SECONDS_DEFAULT)
+API_MAX_RETRIES = _env_int("RELAY_API_MAX_RETRIES", API_MAX_RETRIES_DEFAULT)
+API_BACKOFF_SECONDS = _env_float("RELAY_API_BACKOFF_SECONDS", API_BACKOFF_SECONDS_DEFAULT)
+API_MAX_BACKOFF_SECONDS = _env_float("RELAY_API_MAX_BACKOFF_SECONDS", API_MAX_BACKOFF_SECONDS_DEFAULT)
+_LAST_REQUEST_AT = {"default": 0.0, "search": 0.0}
 
 
 class RelayError(Exception):
@@ -106,22 +139,89 @@ def api_request(
     if payload is not None:
         body = json.dumps(payload).encode("utf-8")
 
-    req = request.Request(url, data=body, method=method.upper())
-    req.add_header("Accept", "application/vnd.github+json")
-    req.add_header("Authorization", f"Bearer {token}")
-    req.add_header("X-GitHub-Api-Version", "2022-11-28")
-    if payload is not None:
-        req.add_header("Content-Type", "application/json")
+    for attempt in range(API_MAX_RETRIES + 1):
+        _throttle_request(path)
 
-    try:
-        with request.urlopen(req) as response:
-            raw = response.read().decode("utf-8")
-            if not raw:
-                return {}
-            return json.loads(raw)
-    except error.HTTPError as exc:
-        detail = exc.read().decode("utf-8", errors="ignore")
-        raise GitHubApiError(exc.code, method, path, detail) from exc
+        req = request.Request(url, data=body, method=method.upper())
+        req.add_header("Accept", "application/vnd.github+json")
+        req.add_header("Authorization", f"Bearer {token}")
+        req.add_header("X-GitHub-Api-Version", "2022-11-28")
+        if payload is not None:
+            req.add_header("Content-Type", "application/json")
+
+        try:
+            with request.urlopen(req) as response:
+                raw = response.read().decode("utf-8")
+                if not raw:
+                    return {}
+                return json.loads(raw)
+        except error.HTTPError as exc:
+            detail = exc.read().decode("utf-8", errors="ignore")
+            if attempt < API_MAX_RETRIES and _is_rate_limited_error(exc.code, detail):
+                delay = _retry_delay_seconds(exc, attempt)
+                print(
+                    f"Rate limited ({exc.code}) on {method.upper()} {path}. "
+                    f"Sleeping {delay:.1f}s before retry {attempt + 1}/{API_MAX_RETRIES}."
+                )
+                time.sleep(delay)
+                continue
+            raise GitHubApiError(exc.code, method, path, detail) from exc
+
+    raise RelayError(f"API request retries exhausted: {method.upper()} {path}")
+
+
+def _request_bucket(path: str) -> str:
+    if path.startswith("/search/"):
+        return "search"
+    return "default"
+
+
+def _bucket_min_interval_seconds(bucket: str) -> float:
+    if bucket == "search":
+        return SEARCH_MIN_INTERVAL_SECONDS
+    return API_MIN_INTERVAL_SECONDS
+
+
+def _throttle_request(path: str) -> None:
+    bucket = _request_bucket(path)
+    min_interval = _bucket_min_interval_seconds(bucket)
+    if min_interval <= 0:
+        return
+
+    elapsed = time.monotonic() - _LAST_REQUEST_AT[bucket]
+    if elapsed < min_interval:
+        time.sleep(min_interval - elapsed)
+    _LAST_REQUEST_AT[bucket] = time.monotonic()
+
+
+def _is_rate_limited_error(status: int, detail: str) -> bool:
+    if status == 429:
+        return True
+    if status != 403:
+        return False
+    lowered = detail.lower()
+    return "rate limit" in lowered or "secondary rate limit" in lowered or "abuse detection" in lowered
+
+
+def _retry_delay_seconds(exc: error.HTTPError, attempt: int) -> float:
+    retry_after = exc.headers.get("Retry-After")
+    if retry_after:
+        try:
+            return max(1.0, float(retry_after))
+        except ValueError:
+            pass
+
+    reset_at = exc.headers.get("X-RateLimit-Reset")
+    if reset_at:
+        try:
+            wait_seconds = int(reset_at) - int(time.time()) + 1
+            if wait_seconds > 0:
+                return float(wait_seconds)
+        except ValueError:
+            pass
+
+    backoff = API_BACKOFF_SECONDS * (2**attempt)
+    return min(max(1.0, backoff), API_MAX_BACKOFF_SECONDS)
 
 
 def load_yaml(path: Path) -> dict[str, Any]:

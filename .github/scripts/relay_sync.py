@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import time
 from dataclasses import dataclass
 from glob import glob
 from pathlib import Path
@@ -50,6 +51,7 @@ LABEL_STYLES = {
     "risk-high": {"color": "b60205", "description": "High risk task"},
 }
 DEFAULT_LABEL_STYLE = {"color": "cfd3d7", "description": "Managed by MuseLucid Relay"}
+ISSUE_SYNC_SLEEP_SECONDS = 10
 
 
 class RelayError(Exception):
@@ -329,7 +331,7 @@ def sync_issues(
     dry_run: bool,
 ) -> list[str]:
     result_lines: list[str] = []
-    for spec in issue_specs:
+    for index, spec in enumerate(issue_specs):
         body = render_issue_body(template, spec, constraints)
         deps_resolved, unresolved = dependency_status(
             repo=repo,
@@ -385,6 +387,10 @@ def sync_issues(
                 msg += f" (blocked by: {', '.join(unresolved)})"
             print(msg)
             result_lines.append(msg)
+
+        if index < len(issue_specs) - 1:
+            print(f"Sleeping {ISSUE_SYNC_SLEEP_SECONDS} seconds before next issue sync...")
+            time.sleep(ISSUE_SYNC_SLEEP_SECONDS)
 
     return result_lines
 

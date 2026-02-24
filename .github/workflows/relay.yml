@@ -10,8 +10,11 @@ on:
   issues:
     types:
       - closed
-      - reopened
   workflow_dispatch:
+
+concurrency:
+  group: relay-${{ github.repository }}
+  cancel-in-progress: false
 
 permissions:
   contents: read

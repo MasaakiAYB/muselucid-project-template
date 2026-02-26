@@ -1,25 +1,20 @@
 id: ISSUE-0002
-title: 取得したヘッドラインをCLIで表示する
-summary: ISSUE-0001で取得したデータを使い、ユーザー向けの標準出力フォーマットを実装する。
+title: システム構成を設計する
+summary: 画面/API/DB/連携の責務と入出力を定義し、実装方針を確定する。
 scope:
-  - 最新ヘッドライン1件を見やすい形式で標準出力に表示する。
-  - 出力失敗時のエラーメッセージを明確にする。
-  - 将来の拡張に備えて表示処理を関数分離する。
-non_goals:
-  - 複数件表示
-  - カラー表示やリッチフォーマット
-  - Web UI 表示
+  - 受注取込画面でCSVまたはメール添付をアップロードする
+  - 登録APIで必須項目を検証して受注登録する
+  - 受注DBにステータスとエラー理由を保存する
+  - 登録失敗時にSlackへ通知する
+non_goals: []
 acceptance_criteria:
-  - コマンド実行時に最新ヘッドライン1件が標準出力に表示される。
-  - 表示処理がISSUE-0001の取得処理に接続されている。
-  - 異常系で非0終了コードが返る。
+  - 主要コンポーネントと責務が定義されている
+  - コンポーネント間の入出力が定義されている
 verify:
-  - ./scripts/show_latest_headline.sh
-  - ./scripts/show_latest_headline.sh >/tmp/headline.out && test -s /tmp/headline.out
-  - ./scripts/show_latest_headline.sh 2>/tmp/headline.err || test -s /tmp/headline.err
-risk: low
+  - 構成レビューでデータ流れを説明できることを確認する
+risk: medium
 labels:
   - agent-task
-  - area:display
+  - agent-ready
 depends_on:
   - ISSUE-0001
